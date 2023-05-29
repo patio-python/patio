@@ -15,7 +15,7 @@ class RestrictedUnpickler(pickle.Unpickler):
     })
 
     def find_class(self, module, name) -> Any:
-        if f'{module}.{name}' in self.SAFE_CLASSES:
+        if f"{module}.{name}" in self.SAFE_CLASSES:
             return super().find_class(module, name)
         raise pickle.UnpicklingError(f"global '{module}.{name}' is forbidden")
 

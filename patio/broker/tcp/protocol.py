@@ -8,9 +8,9 @@ from enum import IntEnum, unique
 from io import BytesIO
 from random import getrandbits
 from struct import Struct
-from typing import Any, Optional, Tuple, Dict
+from typing import Any, Dict, Optional, Tuple
 
-from patio.broker import serializer, TimeoutType
+from patio.broker import TimeoutType, serializer
 
 
 @unique

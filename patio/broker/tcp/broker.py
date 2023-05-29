@@ -8,14 +8,14 @@ from collections import deque
 from dataclasses import dataclass
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, Dict, Set, TypeVar, Coroutine, Optional, List, Union, \
-    Callable, Mapping, Deque
+from typing import (
+    Any, Callable, Coroutine, Deque, Dict, List, Mapping, Optional, Set,
+    TypeVar, Union,
+)
 
 from patio import Registry, TaskFunctionType
 from patio.broker import AbstractBroker, TimeoutType, serializer
-from patio.broker.tcp.protocol import (
-    Header, PacketTypes, Protocol, CallRequest
-)
+from patio.broker.tcp.protocol import CallRequest, Header, PacketTypes, Protocol
 from patio.compat import Queue
 from patio.executor import AbstractExecutor
 
@@ -54,7 +54,7 @@ class PacketHandler(ABC):
         self.__results: Dict[int, asyncio.Future] = {}
 
         self.__method_map: Mapping[
-            PacketTypes, Callable[[RPCEvent], Coroutine[Any, Any, Any]]
+            PacketTypes, Callable[[RPCEvent], Coroutine[Any, Any, Any]],
         ] = MappingProxyType({
             PacketTypes.REQUEST: self.handle_request,
             PacketTypes.RESPONSE: self.handle_response,
@@ -78,7 +78,7 @@ class PacketHandler(ABC):
             self.protocol.pack(
                 RuntimeError("Failed to load response"),
                 PacketTypes.ERROR,
-                serial=serial
+                serial=serial,
             )
             return
 
@@ -87,16 +87,16 @@ class PacketHandler(ABC):
                 self.executor.execute(
                     request.func, *request.args, **request.kwargs
                 ),
-                timeout=request.timeout
+                timeout=request.timeout,
             )
             self.writer.write(
-                self.protocol.pack(result, PacketTypes.RESPONSE, serial=serial)
+                self.protocol.pack(result, PacketTypes.RESPONSE, serial=serial),
             )
         except Exception as e:
             self.writer.write(
                 self.protocol.pack(
-                    e, PacketTypes.ERROR, serial=event.header.serial
-                )
+                    e, PacketTypes.ERROR, serial=event.header.serial,
+                ),
             )
 
     async def handle_response(self, event: RPCEvent) -> None:
@@ -134,7 +134,7 @@ class PacketHandler(ABC):
         future = self.loop.create_future()
         self.__results[serial] = future
         self.writer.write(
-            self.protocol.pack(request, PacketTypes.REQUEST, serial=serial)
+            self.protocol.pack(request, PacketTypes.REQUEST, serial=serial),
         )
         return await future
 
@@ -173,7 +173,7 @@ class PacketHandler(ABC):
 
                     log.info(
                         "Client connection tcp://%s:%d had been closed",
-                        address, port
+                        address, port,
                     )
                     return
         finally:
@@ -230,7 +230,7 @@ class BrokerBase(AbstractBroker, ABC):
         address: str,
         port: int = 15383,
         key: bytes = b"",
-        reconnect_timeout: TimeoutType = 1
+        reconnect_timeout: TimeoutType = 1,
     ):
         self.__handlers: Set[PacketHandler] = set()
         self.__tasks: Set[asyncio.Task] = set()
@@ -277,15 +277,17 @@ class BrokerBase(AbstractBroker, ABC):
 
 
 class Server(BrokerBase):
-    def __init__(self, executor: AbstractExecutor, address: str,
-                 port: int = 15383, key: bytes = b""):
+    def __init__(
+        self, executor: AbstractExecutor, address: str,
+        port: int = 15383, key: bytes = b"",
+    ):
         super().__init__(executor=executor, address=address, port=port, key=key)
         self.server: Optional[asyncio.AbstractServer] = None
         self.clients: Deque[PacketHandler] = deque()
         self.__rotate_lock = asyncio.Lock()
 
     async def _on_client_connected(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
     ):
         handler = ServerPacketHandler(
             reader=reader, writer=writer,
@@ -305,7 +307,7 @@ class Server(BrokerBase):
 
     async def start_server(self) -> None:
         self.server = await asyncio.start_server(
-            self._on_client_connected, host=self.address, port=self.port
+            self._on_client_connected, host=self.address, port=self.port,
         )
 
     async def setup(self) -> None:
@@ -329,7 +331,7 @@ class Server(BrokerBase):
             raise TypeError("Only strings supports")
 
         request = CallRequest(
-            func=func, args=args, kwargs=kwargs, timeout=timeout
+            func=func, args=args, kwargs=kwargs, timeout=timeout,
         )
 
         async def go():
@@ -337,7 +339,7 @@ class Server(BrokerBase):
                 while not self.clients:
                     log.warning(
                         "No connected clients, try again "
-                        "after %.3f seconds.", self.reconnect_timeout
+                        "after %.3f seconds.", self.reconnect_timeout,
                     )
                     await asyncio.sleep(self.reconnect_timeout)
 
@@ -350,8 +352,10 @@ class Server(BrokerBase):
 
 
 class Client(BrokerBase):
-    def __init__(self, executor: AbstractExecutor,
-                 address: str, port: int = 15383, key: bytes = b""):
+    def __init__(
+        self, executor: AbstractExecutor,
+        address: str, port: int = 15383, key: bytes = b"",
+    ):
         super().__init__(executor=executor, address=address, port=port, key=key)
         self.__connected: Optional[asyncio.Event] = None
         self.__handler: Optional[ClientPacketHandler] = None
@@ -367,7 +371,7 @@ class Client(BrokerBase):
         while True:
             try:
                 reader, writer = await asyncio.open_connection(
-                    host=self.address, port=self.port
+                    host=self.address, port=self.port,
                 )
                 handler = ClientPacketHandler(
                     reader=reader, writer=writer,
@@ -384,13 +388,13 @@ class Client(BrokerBase):
                 log.error(
                     "Connection to tcp://%s:%d closed. "
                     "Reconnecting after %.3f seconds...",
-                    self.address, self.port, self.reconnect_timeout
+                    self.address, self.port, self.reconnect_timeout,
                 )
             except ConnectionError:
                 log.error(
                     "Failed to establish connection to tcp://%s:%d closed. "
                     "Reconnecting after %.3fs seconds.",
-                    self.address, self.port, self.reconnect_timeout
+                    self.address, self.port, self.reconnect_timeout,
                 )
             finally:
                 self.__connected.clear()
@@ -416,6 +420,6 @@ class Client(BrokerBase):
                 func=func,
                 args=args,
                 kwargs=kwargs,
-                timeout=timeout
-            )
+                timeout=timeout,
+            ),
         )
