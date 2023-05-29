@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import ssl
 import uuid
 from abc import ABC, abstractmethod
 from collections import deque
@@ -229,7 +230,8 @@ class BrokerBase(AbstractBroker, ABC):
         executor: AbstractExecutor,
         address: str,
         port: int = 15383,
-        key: bytes = b"",
+        key: bytes = b"", *,
+        ssl_context: Optional[ssl.SSLContext] = None,
         reconnect_timeout: TimeoutType = 1,
     ):
         self.__handlers: Set[PacketHandler] = set()
@@ -238,6 +240,7 @@ class BrokerBase(AbstractBroker, ABC):
         self.port: int = port
         self.protocol = Protocol(key=key)
         self.reconnect_timeout = reconnect_timeout
+        self._ssl_context: Optional[ssl.SSLContext] = ssl_context
         super().__init__(executor=executor)
 
     def create_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
@@ -278,10 +281,18 @@ class BrokerBase(AbstractBroker, ABC):
 
 class Server(BrokerBase):
     def __init__(
-        self, executor: AbstractExecutor, address: str,
-        port: int = 15383, key: bytes = b"",
+        self,
+        executor: AbstractExecutor,
+        address: str,
+        port: int = 15383,
+        key: bytes = b"", *,
+        ssl_context: Optional[ssl.SSLContext] = None,
+        reconnect_timeout: TimeoutType = 1,
     ):
-        super().__init__(executor=executor, address=address, port=port, key=key)
+        super().__init__(
+            executor=executor, address=address, port=port, key=key,
+            ssl_context=ssl_context, reconnect_timeout=reconnect_timeout,
+        )
         self.server: Optional[asyncio.AbstractServer] = None
         self.clients: Deque[PacketHandler] = deque()
         self.__rotate_lock = asyncio.Lock()
@@ -308,6 +319,7 @@ class Server(BrokerBase):
     async def start_server(self) -> None:
         self.server = await asyncio.start_server(
             self._on_client_connected, host=self.address, port=self.port,
+            ssl=self._ssl_context,
         )
 
     async def setup(self) -> None:
@@ -353,10 +365,18 @@ class Server(BrokerBase):
 
 class Client(BrokerBase):
     def __init__(
-        self, executor: AbstractExecutor,
-        address: str, port: int = 15383, key: bytes = b"",
+        self,
+        executor: AbstractExecutor,
+        address: str,
+        port: int = 15383,
+        key: bytes = b"", *,
+        ssl_context: Optional[ssl.SSLContext] = None,
+        reconnect_timeout: TimeoutType = 1,
     ):
-        super().__init__(executor=executor, address=address, port=port, key=key)
+        super().__init__(
+            executor=executor, address=address, port=port, key=key,
+            ssl_context=ssl_context, reconnect_timeout=reconnect_timeout,
+        )
         self.__connected: Optional[asyncio.Event] = None
         self.__handler: Optional[ClientPacketHandler] = None
 
@@ -371,7 +391,7 @@ class Client(BrokerBase):
         while True:
             try:
                 reader, writer = await asyncio.open_connection(
-                    host=self.address, port=self.port,
+                    host=self.address, port=self.port, ssl=self._ssl_context,
                 )
                 handler = ClientPacketHandler(
                     reader=reader, writer=writer,
