@@ -393,7 +393,7 @@ class Client(BrokerBase):
             except ConnectionError:
                 log.error(
                     "Failed to establish connection to tcp://%s:%d closed. "
-                    "Reconnecting after %.3fs seconds.",
+                    "Reconnecting after %.3f seconds.",
                     self.address, self.port, self.reconnect_timeout,
                 )
             finally:
