@@ -332,6 +332,20 @@ class Server(BrokerBase):
             await self.server.wait_closed()
         await super().close()
 
+    async def __get_client(self) -> PacketHandler:
+        handler: PacketHandler
+        async with self.__rotate_lock:
+            while not self.clients:
+                log.warning(
+                    "No connected clients, try again "
+                    "after %.3f seconds.", self.reconnect_timeout,
+                )
+                await asyncio.sleep(self.reconnect_timeout)
+
+            handler = self.clients.popleft()
+            self.clients.append(handler)
+        return handler
+
     async def call(
         self,
         func: Union[str, TaskFunctionType],
@@ -347,17 +361,7 @@ class Server(BrokerBase):
         )
 
         async def go():
-            async with self.__rotate_lock:
-                while not self.clients:
-                    log.warning(
-                        "No connected clients, try again "
-                        "after %.3f seconds.", self.reconnect_timeout,
-                    )
-                    await asyncio.sleep(self.reconnect_timeout)
-
-                handler = self.clients.popleft()
-                self.clients.append(handler)
-
+            handler = await self.__get_client()
             return await handler.make_request(request)
 
         return await asyncio.wait_for(go(), timeout=timeout)
