@@ -8,15 +8,17 @@ from enum import IntEnum, unique
 from io import BytesIO
 from random import getrandbits
 from struct import Struct
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Dict
 
-from patio import TaskFunctionType
+from patio.broker import serializer, TimeoutType
 
 
 @unique
 class PacketTypes(IntEnum):
-    AUTH_REQUEST = 0
-    AUTH_RESPONSE = 1
+    AUTH_DIGEST = 0
+    AUTH_REQUEST = 1
+    AUTH_RESPONSE = 2
+    AUTH_OK = 3
     REQUEST = 10
     RESPONSE = 20
     ERROR = 30
@@ -40,15 +42,12 @@ class Header:
         return cls(type=PacketTypes(kind), size=size, serial=serial)
 
 
-class RestrictedUnpickler(pickle.Unpickler):
-    SAFE_BUILTINS = frozenset({
-        "range", "complex", "set", "frozenset", "slice",
-    })
-
-    def find_class(self, module, name):
-        if module == "builtins" and name in self.SAFE_BUILTINS:
-            return getattr(builtins, name)
-        raise pickle.UnpicklingError(f"global '{module}.{name}' is forbidden")
+@dataclass
+class CallRequest:
+    func: str
+    args: Tuple[Any, ...]
+    kwargs: Dict[str, Any]
+    timeout: TimeoutType
 
 
 class Protocol:
@@ -97,27 +96,13 @@ class Protocol:
 
             return fp.getvalue()
 
-    @staticmethod
-    def unpack(data: bytes) -> Any:
-        with BytesIO(data) as fp:
-            return RestrictedUnpickler(fp).load()
-
     def authorize_request(self, token: bytes) -> bytes:
-        return self.pack(self.digest(token), PacketTypes.AUTH_REQUEST)
+        salt, digest = self.digest(token)
+        return self.pack((salt, digest, token), PacketTypes.AUTH_REQUEST)
 
-    def authorize_check(
-        self, token: bytes, payload: bytes,
-    ) -> bool:
-        salt, digest = self.unpack(payload)
-        return self.digest(token, salt=salt) == digest
-
-    def pack_request(
-        self, func: TaskFunctionType, *args: Any, **kwargs: Any
-    ) -> bytes:
-        return self.pack((func, args, kwargs), PacketTypes.REQUEST)
-
-    def pack_response(self, result: Any, serial: int) -> bytes:
-        return self.pack(result, PacketTypes.REQUEST, serial=serial)
+    def authorize_check(self, payload: bytes) -> bool:
+        salt, digest, token = serializer.unpack(payload)
+        return self.digest(token, salt=salt) == (salt, digest)
 
     def pack_error(self, exception: Exception, serial: int) -> bytes:
         return self.pack(exception, PacketTypes.ERROR, serial=serial)

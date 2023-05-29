@@ -6,7 +6,7 @@ import pytest
 
 from patio import Registry
 from patio.executor import (
-    AbstractExecutor, AsyncAbstractExecutor, NullExecutor, ProcessPoolExecutor,
+    AbstractExecutor, AsyncExecutor, NullExecutor, ProcessPoolExecutor,
     ThreadPoolExecutor,
 )
 
@@ -24,7 +24,7 @@ class TestAsyncExecutor:
 
     @pytest.fixture
     async def executor(self, registry) -> AbstractExecutor:
-        async with AsyncAbstractExecutor(registry) as executor:
+        async with AsyncExecutor(registry) as executor:
             yield executor
 
     async def test_multiply(self, executor: AbstractExecutor):

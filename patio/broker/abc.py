@@ -32,6 +32,7 @@ class AbstractBroker(ABC):
         )
 
     async def __aenter__(self) -> "AbstractBroker":
+        await self.setup()
         return self
 
     async def __aexit__(

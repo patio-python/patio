@@ -10,7 +10,7 @@ from patio.registry import AsyncTaskFunctionType, Registry, T
 QueueType = Queue[Tuple[Callable[..., T], Any, Any, asyncio.Future]]
 
 
-class AsyncAbstractExecutor(AbstractExecutor[T]):
+class AsyncExecutor(AbstractExecutor[T]):
     """
     Executes the incoming tasks in the pool of the several concurrent tasks.
     Tasks must be asynchronous functions, or functions that return an
