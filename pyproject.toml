@@ -5,10 +5,15 @@ description = "Python Asynchronous Task for AsyncIO"
 authors = ["Dmitry Orlov <me@mosquito.su>"]
 license = "MIT"
 readme = "README.md"
+packages = [{include = "patio"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
 
+
+[tool.poetry.group.dev.dependencies]
+aiomisc-pytest = "^1.1.1"
+pytest = "^7.3.1"
 
 [build-system]
 requires = ["poetry-core"]
