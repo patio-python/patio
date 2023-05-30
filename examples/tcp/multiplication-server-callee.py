@@ -1,4 +1,3 @@
-import asyncio
 from functools import reduce
 
 import aiomisc
@@ -19,7 +18,9 @@ async def main():
     rpc.register(mul, "mul")
 
     async with ThreadPoolExecutor(rpc) as executor:
-        async with Server(executor, address='127.0.0.1') as broker:
+        async with Server(executor) as broker:
+            await broker.listen(address='127.0.0.1')
+            await broker.listen(address='::1')
             await broker.join()
 
 

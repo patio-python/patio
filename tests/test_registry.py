@@ -7,12 +7,12 @@ from patio import Registry
 
 def test_registry_properties(subtests):
     r = Registry(project="foo", strict=False, auto_naming=False)
-    assert r.project == 'foo'
+    assert r.project == "foo"
     assert not r.strict
     assert not r.auto_naming
 
     r = Registry(project="bar", strict=True, auto_naming=True)
-    assert r.project == 'bar'
+    assert r.project == "bar"
     assert r.strict
     assert r.auto_naming
 
@@ -21,22 +21,22 @@ def test_registry_as_mapping(subtests):
     r = Registry()
 
     with subtests.test("contains"):
-        r['foo'] = lambda x: None
-        assert 'foo' in r
+        r["foo"] = lambda x: None
+        assert "foo" in r
         assert len(r) == 1
 
     with subtests.test("del"):
-        del r['foo']
-        assert 'foo' not in r
+        del r["foo"]
+        assert "foo" not in r
         assert len(r) == 0
 
     with subtests.test("add twice"):
-        r['foo'] = lambda x: None
+        r["foo"] = lambda x: None
 
         with pytest.raises(RuntimeError):
-            r['foo'] = lambda x: None
+            r["foo"] = lambda x: None
 
-        del r['foo']
+        del r["foo"]
 
     with subtests.test("locked"):
         assert not r.is_locked
@@ -46,30 +46,30 @@ def test_registry_as_mapping(subtests):
         r.lock()
 
         with pytest.raises(TypeError):
-            r['foo'] = lambda x: None
+            r["foo"] = lambda x: None
 
 
 def test_registry_decorator(subtests):
     r = Registry(auto_naming=True)
 
-    @r('foo')
+    @r("foo")
     def foo():
         pass
 
     with subtests.test("contains"):
-        assert 'foo' in r
+        assert "foo" in r
     with subtests.test("iter"):
-        assert list(r) == ['foo']
+        assert list(r) == ["foo"]
     with subtests.test("items"):
-        assert dict(r.items()) == {'foo': foo}
+        assert dict(r.items()) == {"foo": foo}
     with subtests.test("keys"):
-        assert list(r.keys()) == ['foo']
+        assert list(r.keys()) == ["foo"]
     with subtests.test("values"):
         assert list(r.values()) == [foo]
 
     with subtests.test("del"):
-        del r['foo']
-        assert 'foo' not in r
+        del r["foo"]
+        assert "foo" not in r
 
 
 def test_auto_naming(subtests):
@@ -77,7 +77,7 @@ def test_auto_naming(subtests):
         r = Registry(project="test", auto_naming=True)
 
         with pytest.raises(KeyError):
-            print(r['bar'])
+            print(r["bar"])
 
         @r
         def foo():
@@ -85,7 +85,7 @@ def test_auto_naming(subtests):
 
         auto_name = r.get_name(foo)
         assert auto_name in r
-        assert auto_name == 'test.test_registry.test_auto_naming.<locals>.foo'
+        assert auto_name == "test.test_registry.test_auto_naming.<locals>.foo"
 
         assert r.resolve(auto_name) == r.resolve(foo)
 
@@ -97,11 +97,11 @@ def test_auto_naming(subtests):
             def foo():
                 pass
 
-        @r('spam')
+        @r("spam")
         def spam():
             pass
 
-        assert r.resolve('spam') == spam
+        assert r.resolve("spam") == spam
         with pytest.raises(ValueError):
             assert r.resolve(spam)
 
@@ -118,8 +118,8 @@ def test_auto_naming(subtests):
         auto_name = r.get_name(bar)
         assert auto_name in r
         assert auto_name == (
-            'test.test_registry.test_auto_naming.<locals>.bar.'
-            'R+2IfaUD/3mHEJQ+XeqUstkXG1ZBRtFA74WWe05ex+w'
+            "test.test_registry.test_auto_naming.<locals>.bar."
+            "R+2IfaUD/3mHEJQ+XeqUstkXG1ZBRtFA74WWe05ex+w"
         )
         assert r.resolve(auto_name) == r.resolve(bar)
 
@@ -129,8 +129,8 @@ def test_auto_naming(subtests):
         r(baz)
 
         assert r.get_name(baz) == (
-            'test.test_registry.test_auto_naming.<locals>.baz.'
-            'mYEWlo2vwOi3I/Z2rb5wayVONVncmvJ83EX07QsVOq8'
+            "test.test_registry.test_auto_naming.<locals>.baz."
+            "mYEWlo2vwOi3I/Z2rb5wayVONVncmvJ83EX07QsVOq8"
         )
 
 
@@ -146,7 +146,7 @@ def test_pickling():
     r1 = Registry()
     r1(pickling_foo)
     r1(pickling_bar)
-    r1['spam'] = pickling_bar
+    r1["spam"] = pickling_bar
 
     dumped = pickle.dumps(r1)
 

@@ -173,3 +173,134 @@ This package is implemented by the following brokers:
 * `TCPBroker` - Simple implementation of the broker just using TCP,
    both Server and Client mode is supported for both the task executor
    and the task provider.
+
+### `MemoryBroker`
+
+It's useful if you don't need to assign tasks now, but it's a good help
+to do it in the future.
+
+In fact, it's a simple way to run tasks in the executor from other
+places in your project.
+
+### `TCPBroker`
+
+This allows you to make your tasks distributed without resorting to
+external message brokers or something else.
+
+The basic idea of TCP broker implementation is that in terms of
+performing tasks, there is no difference between them, it is
+just a way to establish a connection, both the server and the
+client can be the one who performs tasks and the one who sets
+them, and it is also possible in mixed mode.
+
+In other words, deciding who will be the server and who will be the
+client in your system is just a way to connect and find each other
+in your distributed system.
+
+Here are the ways of organizing communication between the
+server and the clients.
+
+#### Server centric scheme example
+
+![server centric](images/server-centric.svg "Server Centric")
+
+This diagram describes a simple example, if there is one server
+and one client exchanging messages via TCP.
+
+#### One client multiple servers example
+
+![multiple servers](images/multiple-servers.svg "One client multiple servers")
+
+This is an example of how a client establishes connections to a set server.
+
+#### Full mesh example
+
+![full mesh](images/full-mesh.svg "Full mesh")
+
+Full mesh scheme, all clients are connected to all servers.
+
+#### Authorization
+
+Authorization takes place at the start of the connection,
+for this the parameter `key=` must contain the same keys for client and server.
+
+**It is important to understand that this is not 100% protection against
+attacks like MITM etc.**
+
+This approach should only be used if the client and server are on a trusted
+network. In order to secure traffic as it traverses the Internet, the
+`ssl_context=` parameter should be prepended to both the server and the client.
+
+#### Examples
+
+The examples below will hopefully help you figure this out.
+
+##### Server executing tasks
+
+```python
+from functools import reduce
+
+import asyncio
+
+from patio import Registry
+from patio.broker.tcp import Server
+from patio.executor import ThreadPoolExecutor
+
+
+rpc = Registry(project="test", auto_naming=False)
+
+
+def mul(*args):
+    return reduce(lambda x, y: x * y, args)
+
+
+async def main():
+    rpc.register(mul, "mul")
+
+    async with ThreadPoolExecutor(rpc) as executor:
+        async with Server(executor) as broker:
+            # Start IPv4 server
+            await broker.listen(address='127.0.0.1')
+
+            # Start IPv6 server
+            await broker.listen(address='::1', port=12345)
+
+            await broker.join()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+##### Client calling tasks remotely
+
+```python
+import asyncio
+
+from patio import Registry
+from patio.broker.tcp import Client
+from patio.executor import ThreadPoolExecutor
+
+
+rpc = Registry(project="test", auto_naming=False)
+
+
+async def main():
+    async with ThreadPoolExecutor(rpc) as executor:
+        async with Client(executor) as broker:
+            # Connect to the IPv4 address
+            await broker.connect(address='127.0.0.1')
+
+            # Connect to the IPv6 address (optional)
+            await broker.connect(address='::1', port=12345)
+
+            print(
+                await asyncio.gather(*[
+                    broker.call('mul', i, i) for i in range(10)
+                ]),
+            )
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```

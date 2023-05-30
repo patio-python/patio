@@ -263,18 +263,18 @@ class Registry(MutableMapping, Generic[T]):
             project=self.__project,
             strict=self.__strict,
             store=self.__store,
-            locked=self.__locked
+            locked=self.__locked,
         )
 
     def __setstate__(self, state: Dict[str, Any]) -> None:
-        self.__auto_naming = state['auto_naming']
-        self.__project = state['project']
-        self.__strict = state['strict']
-        self.__locked = state['locked']
+        self.__auto_naming = state["auto_naming"]
+        self.__project = state["project"]
+        self.__strict = state["strict"]
+        self.__locked = state["locked"]
         self.__store = {}
         self.__reverse_store = defaultdict(set)
 
-        for name, func in state['store'].items():
+        for name, func in state["store"].items():
             self[name] = func
 
 

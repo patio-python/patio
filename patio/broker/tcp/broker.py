@@ -217,7 +217,7 @@ class ClientPacketHandler(PacketHandler):
         return event.header.type == PacketTypes.AUTH_OK
 
 
-class BrokerBase(AbstractBroker, ABC):
+class Base(AbstractBroker, ABC):
     protocol: Protocol
     registry: Registry
 
@@ -228,20 +228,41 @@ class BrokerBase(AbstractBroker, ABC):
     def __init__(
         self,
         executor: AbstractExecutor,
-        address: str,
-        port: int = 15383,
         key: bytes = b"", *,
         ssl_context: Optional[ssl.SSLContext] = None,
         reconnect_timeout: TimeoutType = 1,
     ):
         self.__handlers: Set[PacketHandler] = set()
         self.__tasks: Set[asyncio.Task] = set()
-        self.address: str = address
-        self.port: int = port
         self.protocol = Protocol(key=key)
         self.reconnect_timeout = reconnect_timeout
         self._ssl_context: Optional[ssl.SSLContext] = ssl_context
+        self.__handlers: Deque[PacketHandler] = deque()
+        self.__rotate_lock = asyncio.Lock()
+
         super().__init__(executor=executor)
+
+    async def _get_handler(self) -> PacketHandler:
+        handler: PacketHandler
+
+        async with self.__rotate_lock:
+            while not self.__handlers:
+                log.warning(
+                    "No active connections, retrying after %.3f seconds.",
+                    self.reconnect_timeout,
+                )
+                await asyncio.sleep(self.reconnect_timeout)
+
+            handler = self.__handlers.popleft()
+            self.__handlers.append(handler)
+        return handler
+
+    async def _add_handler(self, handler: PacketHandler) -> None:
+        self.__handlers.append(handler)
+
+    async def _remove_handler(self, handler: PacketHandler) -> None:
+        async with self.__rotate_lock:
+            self.__handlers.remove(handler)
 
     def create_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
         task = self.loop.create_task(coro)
@@ -263,88 +284,10 @@ class BrokerBase(AbstractBroker, ABC):
 
         await super().close()
 
-    @abstractmethod
-    async def call(
-        self,
-        func: Union[str, TaskFunctionType],
-        *args: Any,
-        timeout: Optional[TimeoutType] = None,
-        **kwargs: Any,
-    ) -> Any:
-        raise NotImplementedError(func, args, timeout, kwargs)
-
     async def join(self) -> None:
         async def waiter():
             await self.loop.create_future()
         await self.create_task(waiter())
-
-
-class Server(BrokerBase):
-    def __init__(
-        self,
-        executor: AbstractExecutor,
-        address: str,
-        port: int = 15383,
-        key: bytes = b"", *,
-        ssl_context: Optional[ssl.SSLContext] = None,
-        reconnect_timeout: TimeoutType = 1,
-    ):
-        super().__init__(
-            executor=executor, address=address, port=port, key=key,
-            ssl_context=ssl_context, reconnect_timeout=reconnect_timeout,
-        )
-        self.server: Optional[asyncio.AbstractServer] = None
-        self.clients: Deque[PacketHandler] = deque()
-        self.__rotate_lock = asyncio.Lock()
-
-    async def _on_client_connected(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-    ):
-        handler = ServerPacketHandler(
-            reader=reader, writer=writer,
-            executor=self.executor, protocol=self.protocol,
-        )
-
-        if not await handler.authorize():
-            raise RuntimeError("Unauthorized")
-
-        self.clients.append(handler)
-
-        try:
-            await handler.start_processing()
-        finally:
-            async with self.__rotate_lock:
-                self.clients.remove(handler)
-
-    async def start_server(self) -> None:
-        self.server = await asyncio.start_server(
-            self._on_client_connected, host=self.address, port=self.port,
-            ssl=self._ssl_context,
-        )
-
-    async def setup(self) -> None:
-        await super().setup()
-        await self.start_server()
-
-    async def close(self) -> None:
-        if self.server is not None:
-            self.server.close()
-            await self.server.wait_closed()
-        await super().close()
-
-    async def __get_client(self) -> PacketHandler:
-        handler: PacketHandler
-        async with self.__rotate_lock:
-            while not self.clients:
-                log.warning(
-                    "No connected clients, try again "
-                    "after %.3f seconds.", self.reconnect_timeout,
-                )
-                await asyncio.sleep(self.reconnect_timeout)
-
-            handler = self.clients.popleft()
-            self.clients.append(handler)
-        return handler
 
     async def call(
         self,
@@ -361,41 +304,82 @@ class Server(BrokerBase):
         )
 
         async def go():
-            handler = await self.__get_client()
+            handler = await self._get_handler()
             return await handler.make_request(request)
 
         return await asyncio.wait_for(go(), timeout=timeout)
 
 
-class Client(BrokerBase):
+DEFAULT_PORT = 15383
+
+
+class Server(Base):
     def __init__(
         self,
         executor: AbstractExecutor,
-        address: str,
-        port: int = 15383,
         key: bytes = b"", *,
         ssl_context: Optional[ssl.SSLContext] = None,
         reconnect_timeout: TimeoutType = 1,
     ):
         super().__init__(
-            executor=executor, address=address, port=port, key=key,
-            ssl_context=ssl_context, reconnect_timeout=reconnect_timeout,
+            executor=executor, key=key, ssl_context=ssl_context,
+            reconnect_timeout=reconnect_timeout,
         )
-        self.__connected: Optional[asyncio.Event] = None
-        self.__handler: Optional[ClientPacketHandler] = None
+        self.servers: Set[asyncio.AbstractServer] = set()
 
-    async def get_handler(self) -> ClientPacketHandler:
-        await self.__connected.wait()
-        while self.__handler is None:
-            await self.__connected.wait()
-        return self.__handler       # type: ignore
+    async def _on_client_connected(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+    ):
+        handler = ServerPacketHandler(
+            reader=reader, writer=writer,
+            executor=self.executor, protocol=self.protocol,
+        )
 
-    async def connection_fabric(self):
-        self.__connected = asyncio.Event()
+        if not await handler.authorize():
+            raise RuntimeError("Unauthorized")
+
+        await self._add_handler(handler)
+
+        try:
+            await handler.start_processing()
+        finally:
+            await self._remove_handler(handler)
+
+    async def listen(
+        self, address: str, port: int = DEFAULT_PORT, **kwargs: Any
+    ) -> None:
+        self.servers.add(
+            await asyncio.start_server(
+                self._on_client_connected,
+                host=address,
+                port=port,
+                ssl=self._ssl_context,
+                **kwargs
+            ),
+        )
+
+    async def close(self) -> None:
+        closing = []
+        for server in self.servers:
+            server.close()
+            closing.append(server.wait_closed())
+
+        if closing:
+            await asyncio.gather(*closing, return_exceptions=True)
+        await super().close()
+
+
+class Client(Base):
+    async def connection_fabric(
+        self, address: str, port: int,
+        on_connected: asyncio.Event,
+        **kwargs: Any
+    ) -> None:
         while True:
             try:
                 reader, writer = await asyncio.open_connection(
-                    host=self.address, port=self.port, ssl=self._ssl_context,
+                    host=address, port=port, ssl=self._ssl_context,
+                    **kwargs
                 )
                 handler = ClientPacketHandler(
                     reader=reader, writer=writer,
@@ -404,46 +388,38 @@ class Client(BrokerBase):
                 if not await handler.authorize():
                     raise RuntimeError("Unauthorized")
 
+                on_connected.set()
+                await self._add_handler(handler)
+
                 await handler.start_processing()
 
-                self.__handler = handler
-                self.__connected.set()
+                on_connected.clear()
+                await self._remove_handler(handler)
 
                 log.error(
                     "Connection to tcp://%s:%d closed. "
                     "Reconnecting after %.3f seconds...",
-                    self.address, self.port, self.reconnect_timeout,
+                    address, port, self.reconnect_timeout,
                 )
-            except ConnectionError:
+            except (ConnectionError, asyncio.TimeoutError):
                 log.error(
                     "Failed to establish connection to tcp://%s:%d closed. "
                     "Reconnecting after %.3f seconds.",
-                    self.address, self.port, self.reconnect_timeout,
+                    address, port, self.reconnect_timeout,
                 )
             finally:
-                self.__connected.clear()
                 await asyncio.sleep(self.reconnect_timeout)
+            log.info(
+                "Connection attempts to tcp://%s:%d has been stopped.",
+                address, port,
+            )
 
-    async def setup(self) -> None:
-        await super().setup()
-        self.create_task(self.connection_fabric())
+    async def connect(
+        self, address: str, port: int = DEFAULT_PORT, **kwargs: Any
+    ) -> None:
+        event = asyncio.Event()
+        self.create_task(self.connection_fabric(address, port, event, **kwargs))
+        await event.wait()
 
-    async def call(
-        self,
-        func: Union[str, TaskFunctionType],
-        *args: Any,
-        timeout: Optional[TimeoutType] = None,
-        **kwargs: Any,
-    ) -> Any:
-        if not isinstance(func, str):
-            raise TypeError("Only strings supported")
 
-        handler = await self.get_handler()
-        return await handler.make_request(
-            CallRequest(
-                func=func,
-                args=args,
-                kwargs=kwargs,
-                timeout=timeout,
-            ),
-        )
+__all__ = ("Base", "Client", "Server")

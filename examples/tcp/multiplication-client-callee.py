@@ -18,7 +18,8 @@ async def main():
     rpc.register(mul, "mul")
 
     async with ThreadPoolExecutor(rpc) as executor:
-        async with Client(executor, address='127.0.0.1') as broker:
+        async with Client(executor) as broker:
+            await broker.connect(address='127.0.0.1')
             await broker.join()
 
 

@@ -12,7 +12,8 @@ rpc = Registry(project="test", strict=True)
 
 async def main():
     async with ThreadPoolExecutor(rpc) as executor:
-        async with Server(executor, address='127.0.0.1') as broker:
+        async with Server(executor) as broker:
+            await broker.listen(address='127.0.0.1')
             while True:
                 print(
                     await asyncio.gather(*[
