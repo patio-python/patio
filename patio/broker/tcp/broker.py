@@ -436,7 +436,7 @@ class Client(BrokerBase):
         **kwargs: Any,
     ) -> Any:
         if not isinstance(func, str):
-            raise TypeError("Only strings supports")
+            raise TypeError("Only strings supported")
 
         handler = await self.get_handler()
         return await handler.make_request(

@@ -104,9 +104,14 @@ class Registry(MutableMapping, Generic[T]):
 
     __slots__ = (
         "__project", "__strict", "__store", "__reverse_store", "__locked",
+        "__auto_naming",
     )
 
-    def __init__(self, project: Optional[str] = None, strict: bool = False):
+    def __init__(
+        self, project: Optional[str] = None, strict: bool = False,
+        auto_naming: bool = True,
+    ):
+        self.__auto_naming: bool = auto_naming
         self.__project = project
         self.__strict = strict
         self.__store: Dict[str, TaskFunctionType] = {}
@@ -127,6 +132,10 @@ class Registry(MutableMapping, Generic[T]):
     def strict(self) -> bool:
         return self.__strict
 
+    @property
+    def auto_naming(self) -> bool:
+        return self.__auto_naming
+
     def _make_function_name(self, func: TaskFunctionType) -> str:
         parts = []
 
@@ -136,8 +145,8 @@ class Registry(MutableMapping, Generic[T]):
         if hasattr(func, "__module__"):
             parts.append(func.__module__)
 
-        if hasattr(func, "__name__"):
-            parts.append(func.__name__)
+        if hasattr(func, "__qualname__"):
+            parts.append(func.__qualname__)
 
         if self.strict:
             sources = inspect.getsource(func)
@@ -162,6 +171,11 @@ class Registry(MutableMapping, Generic[T]):
         self, func: TaskFunctionType, name: Optional[str] = None,
     ) -> str:
         if name is None:
+            if not self.__auto_naming:
+                raise ValueError(
+                    "auto_naming is disabled, "
+                    "name parameter is required",
+                )
             name = self._make_function_name(func)
         self[name] = func
         return name
@@ -192,7 +206,7 @@ class Registry(MutableMapping, Generic[T]):
                 f"registered for {self.__store[name]!r}",
             )
         self.__store[name] = func
-        self.__reverse_store[func] = name
+        self.__reverse_store[func].add(name)
 
     def __delitem__(self, name: str) -> None:
         func = self.__store.pop(name)
@@ -235,8 +249,33 @@ class Registry(MutableMapping, Generic[T]):
         self, func: Union[str, Callable[..., T]],
     ) -> Callable[..., Any]:
         if not isinstance(func, str):
+            if not self.__auto_naming:
+                raise ValueError(
+                    "auto_naming is disabled, "
+                    "name parameter is required",
+                )
             func = self.get_name(func)
         return self[func]
+
+    def __getstate__(self) -> Dict[str, Any]:
+        return dict(
+            auto_naming=self.__auto_naming,
+            project=self.__project,
+            strict=self.__strict,
+            store=self.__store,
+            locked=self.__locked
+        )
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        self.__auto_naming = state['auto_naming']
+        self.__project = state['project']
+        self.__strict = state['strict']
+        self.__locked = state['locked']
+        self.__store = {}
+        self.__reverse_store = defaultdict(set)
+
+        for name, func in state['store'].items():
+            self[name] = func
 
 
 __all__ = (
