@@ -25,11 +25,7 @@ class AbstractBroker(ABC):
         *args: Any,
         timeout: Optional[TimeoutType] = None,
         **kwargs: Any,
-    ) -> Any:
-        raise NotImplementedError(
-            f"No way to call {func!r}: args={args!r}, "
-            f"kwargs={kwargs!r}, timeout={timeout}s",
-        )
+    ) -> Any: ...
 
     async def __aenter__(self) -> "AbstractBroker":
         await self.setup()

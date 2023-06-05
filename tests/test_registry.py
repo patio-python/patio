@@ -48,6 +48,9 @@ def test_registry_as_mapping(subtests):
         with pytest.raises(RuntimeError):
             r["foo"] = lambda x: None
 
+        with pytest.raises(RuntimeError):
+            del r["foo"]
+
 
 def test_registry_decorator(subtests):
     r: Registry = Registry(auto_naming=True)

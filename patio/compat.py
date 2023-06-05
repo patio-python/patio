@@ -23,6 +23,4 @@ else:
             return super().put_nowait(element)
 
 
-__all__ = (
-    "Queue",
-)
+__all__ = ("Queue",)
