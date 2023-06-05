@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "patio"
-version = "0.0.1"
+version = "0.1.0"
 description = "Python Asynchronous Task for AsyncIO"
 authors = ["Dmitry Orlov <me@mosquito.su>"]
 license = "MIT"
@@ -20,3 +20,30 @@ pytest-cov = "^4.1.0"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_any_generics = false
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+follow_imports = "silent"
+no_implicit_reexport = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = true
+files = [
+    "patio",
+    "tests",
+]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+check_untyped_defs = true
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_untyped_decorators = false
+disallow_untyped_defs = false

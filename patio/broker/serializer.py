@@ -14,7 +14,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         "patio.broker.tcp.protocol.CallRequest",
     })
 
-    def find_class(self, module, name) -> Any:
+    def find_class(self, module: str, name: str) -> Any:
         if f"{module}.{name}" in self.SAFE_CLASSES:
             return super().find_class(module, name)
         raise pickle.UnpicklingError(f"global '{module}.{name}' is forbidden")

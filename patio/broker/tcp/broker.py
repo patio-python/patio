@@ -14,11 +14,11 @@ from typing import (
     TypeVar, Union,
 )
 
-from patio import Registry, TaskFunctionType
 from patio.broker import AbstractBroker, TimeoutType, serializer
 from patio.broker.tcp.protocol import CallRequest, Header, PacketTypes, Protocol
 from patio.compat import Queue
 from patio.executor import AbstractExecutor
+from patio.registry import Registry, TaskFunctionType
 
 
 T = TypeVar("T")
@@ -156,7 +156,7 @@ class PacketHandler(ABC):
             await method(event)
             self.__events.task_done()
 
-    async def start_processing(self):
+    async def start_processing(self) -> None:
         workers = []
 
         for _ in range(self.executor.max_workers):
@@ -217,7 +217,7 @@ class ClientPacketHandler(PacketHandler):
         return event.header.type == PacketTypes.AUTH_OK
 
 
-class Base(AbstractBroker, ABC):
+class TCPBrokerBase(AbstractBroker, ABC):
     protocol: Protocol
     registry: Registry
 
@@ -232,7 +232,6 @@ class Base(AbstractBroker, ABC):
         ssl_context: Optional[ssl.SSLContext] = None,
         reconnect_timeout: TimeoutType = 1,
     ):
-        self.__handlers: Set[PacketHandler] = set()
         self.__tasks: Set[asyncio.Task] = set()
         self.protocol = Protocol(key=key)
         self.reconnect_timeout = reconnect_timeout
@@ -285,7 +284,7 @@ class Base(AbstractBroker, ABC):
         await super().close()
 
     async def join(self) -> None:
-        async def waiter():
+        async def waiter() -> None:
             await self.loop.create_future()
         await self.create_task(waiter())
 
@@ -303,7 +302,7 @@ class Base(AbstractBroker, ABC):
             func=func, args=args, kwargs=kwargs, timeout=timeout,
         )
 
-        async def go():
+        async def go() -> Any:
             handler = await self._get_handler()
             return await handler.make_request(request)
 
@@ -313,7 +312,7 @@ class Base(AbstractBroker, ABC):
 DEFAULT_PORT = 15383
 
 
-class Server(Base):
+class TCPServerBroker(TCPBrokerBase):
     def __init__(
         self,
         executor: AbstractExecutor,
@@ -329,7 +328,7 @@ class Server(Base):
 
     async def _on_client_connected(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-    ):
+    ) -> None:
         handler = ServerPacketHandler(
             reader=reader, writer=writer,
             executor=self.executor, protocol=self.protocol,
@@ -369,7 +368,7 @@ class Server(Base):
         await super().close()
 
 
-class Client(Base):
+class TCPClientBroker(TCPBrokerBase):
     async def connection_fabric(
         self, address: str, port: int,
         on_connected: asyncio.Event,
@@ -422,4 +421,4 @@ class Client(Base):
         await event.wait()
 
 
-__all__ = ("Base", "Client", "Server")
+__all__ = ("TCPBrokerBase", "TCPClientBroker", "TCPServerBroker")

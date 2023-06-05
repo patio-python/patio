@@ -4,7 +4,7 @@ from typing import Any, Awaitable, Callable, Set, Tuple
 
 from patio.compat import Queue
 from patio.executor.base import AbstractExecutor
-from patio.registry import AsyncTaskFunctionType, Registry, T
+from patio.registry import AsyncTaskFunctionType, T
 
 
 QueueType = Queue[Tuple[Callable[..., T], Any, Any, asyncio.Future]]
@@ -20,7 +20,7 @@ class AsyncExecutor(AbstractExecutor[T]):
     """
     __slots__ = "max_workers", "queue", "tasks"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.queue: QueueType = Queue(maxsize=self.max_workers)
         self.tasks: Set[asyncio.Task] = set()
@@ -30,7 +30,7 @@ class AsyncExecutor(AbstractExecutor[T]):
     def loop(self) -> asyncio.AbstractEventLoop:
         return asyncio.get_running_loop()
 
-    async def _executor(self):
+    async def _executor(self) -> None:
         while True:
             func, args, kwargs, future = await self.queue.get()
             if future.done():
@@ -52,7 +52,7 @@ class AsyncExecutor(AbstractExecutor[T]):
 
     async def submit(
         self, func: AsyncTaskFunctionType, *args: Any, **kwargs: Any
-    ) -> Awaitable[T]:
+    ) -> T:
         future = self.loop.create_future()
         await self.queue.put((func, args, kwargs, future))
         return await future

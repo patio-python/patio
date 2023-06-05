@@ -1,9 +1,8 @@
+import asyncio
 from functools import reduce
 
-import aiomisc
-
 from patio import Registry
-from patio.broker.tcp import Client
+from patio.broker.tcp import TCPServerBroker
 from patio.executor import ThreadPoolExecutor
 
 
@@ -18,10 +17,11 @@ async def main():
     rpc.register(mul, "mul")
 
     async with ThreadPoolExecutor(rpc) as executor:
-        async with Client(executor) as broker:
-            await broker.connect(address='127.0.0.1')
+        async with TCPServerBroker(executor) as broker:
+            await broker.listen(address='127.0.0.1')
+            await broker.listen(address='::1')
             await broker.join()
 
 
 if __name__ == "__main__":
-    aiomisc.run(main())
+    asyncio.run(main())

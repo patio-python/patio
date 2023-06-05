@@ -10,7 +10,8 @@ from random import getrandbits
 from struct import Struct
 from typing import Any, Dict, Optional, Tuple
 
-from patio.broker import TimeoutType, serializer
+from patio.broker import serializer
+from patio.broker.abc import TimeoutType
 
 
 @unique
@@ -47,7 +48,7 @@ class CallRequest:
     func: str
     args: Tuple[Any, ...]
     kwargs: Dict[str, Any]
-    timeout: TimeoutType
+    timeout: Optional[TimeoutType]
 
 
 class Protocol:

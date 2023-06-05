@@ -1,6 +1,7 @@
 from typing import Any, Awaitable, Callable
 
-from patio.executor.base import AbstractExecutor, T
+from patio.executor.base import AbstractExecutor
+from patio.registry import T
 
 
 class NullExecutor(AbstractExecutor):

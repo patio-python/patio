@@ -1,16 +1,17 @@
 from functools import reduce
 from operator import mul
+from typing import AsyncGenerator, Any
 
 import pytest
 
 from patio import Registry
 from patio.broker import MemoryBroker
-from patio.executor import ThreadPoolExecutor
+from patio.executor import ThreadPoolExecutor, AbstractExecutor
 
 
 @pytest.fixture
 def registry():
-    rpc = Registry()
+    rpc: Registry = Registry()
 
     @rpc("mul")
     def multiply(*args: int) -> int:
@@ -19,14 +20,18 @@ def registry():
     return rpc
 
 
-@pytest.fixture
-async def executor(registry) -> ThreadPoolExecutor:
+@pytest.fixture()
+async def executor(
+    registry: Registry
+) -> AsyncGenerator[Any, ThreadPoolExecutor]:
     async with ThreadPoolExecutor(registry) as executor:
         yield executor
 
 
 @pytest.fixture
-async def broker(registry, executor) -> MemoryBroker:
+async def broker(
+    registry: Registry, executor: AbstractExecutor
+) -> AsyncGenerator[Any, MemoryBroker]:
     async with MemoryBroker(executor) as broker:
         yield broker
 

@@ -1,6 +1,7 @@
 import asyncio
 from functools import reduce
 from operator import mul
+from typing import AsyncGenerator, Any
 
 import pytest
 
@@ -11,21 +12,16 @@ from patio.executor import (
 )
 
 
-class TestAsyncExecutor:
+class AsyncExecutorBaseCase:
     @staticmethod
-    async def multiply(*args: int) -> int:
-        return reduce(mul, args)
+    def multiply(*args: int) -> Any:
+        raise NotImplementedError
 
     @pytest.fixture
     def registry(self) -> Registry:
-        rpc = Registry()
+        rpc: Registry = Registry()
         rpc["mul"] = self.multiply
         return rpc
-
-    @pytest.fixture
-    async def executor(self, registry) -> AbstractExecutor:
-        async with AsyncExecutor(registry) as executor:
-            yield executor
 
     async def test_multiply(self, executor: AbstractExecutor):
         assert await executor.submit(self.multiply, 1, 2, 3) == 6
@@ -39,9 +35,24 @@ class TestAsyncExecutor:
         assert await asyncio.gather(*tasks) == [6] * 100
 
 
-class TestThreadPoolExecutor(TestAsyncExecutor):
+class TestAsyncExecutor(AsyncExecutorBaseCase):
     @pytest.fixture
-    async def executor(self, registry) -> AbstractExecutor:
+    async def executor(
+        self, registry: Registry
+    ) -> AsyncGenerator[Any, AbstractExecutor]:
+        async with AsyncExecutor(registry) as executor:
+            yield executor
+
+    @staticmethod
+    async def multiply(*args: int) -> int:
+        return reduce(mul, args)
+
+
+class TestThreadPoolExecutor(AsyncExecutorBaseCase):
+    @pytest.fixture
+    async def executor(
+        self, registry: Registry
+    ) -> AsyncGenerator[Any, AbstractExecutor]:
         async with ThreadPoolExecutor(registry) as executor:
             yield executor
 
@@ -50,9 +61,11 @@ class TestThreadPoolExecutor(TestAsyncExecutor):
         return reduce(mul, args)
 
 
-class TestProcessPoolExecutor(TestAsyncExecutor):
+class TestProcessPoolExecutor(AsyncExecutorBaseCase):
     @pytest.fixture
-    async def executor(self, registry) -> AbstractExecutor:
+    async def executor(
+        self, registry: Registry
+    ) -> AsyncGenerator[Any, AbstractExecutor]:
         async with ProcessPoolExecutor(registry) as executor:
             yield executor
 
@@ -64,14 +77,16 @@ class TestProcessPoolExecutor(TestAsyncExecutor):
 class TestNullExecutor:
     @pytest.fixture
     def registry(self) -> Registry:
-        rpc = Registry()
+        rpc: Registry = Registry()
         return rpc
 
     @pytest.fixture
-    async def executor(self, registry) -> NullExecutor:
+    async def executor(
+        self, registry: Registry
+    ) -> AsyncGenerator[Any, NullExecutor]:
         async with NullExecutor(registry) as executor:
             yield executor
 
-    async def test_simple(self, executor):
+    async def test_simple(self, executor: AbstractExecutor):
         with pytest.raises(RuntimeError):
             await executor.submit(print)

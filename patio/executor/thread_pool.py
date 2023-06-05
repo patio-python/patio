@@ -3,7 +3,7 @@ import concurrent.futures
 from functools import cached_property, partial
 from typing import Any, Awaitable
 
-from patio.executor.base import AbstractExecutor, T
+from patio.executor.base import AbstractExecutor
 from patio.registry import SyncTaskFunctionType, T
 
 

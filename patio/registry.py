@@ -17,6 +17,13 @@ SyncTaskFunctionType = Callable[..., T]
 TaskFunctionType = Union[AsyncTaskFunctionType, SyncTaskFunctionType]
 
 
+StoreType = Union[Dict[str, TaskFunctionType], MappingProxyType]
+ReverseStoreType = Union[
+    DefaultDict[TaskFunctionType, Set[str]],
+    MappingProxyType,
+]
+
+
 class Registry(MutableMapping, Generic[T]):
     """
     This is a container of functions for their subsequent execution.
@@ -114,10 +121,8 @@ class Registry(MutableMapping, Generic[T]):
         self.__auto_naming: bool = auto_naming
         self.__project = project
         self.__strict = strict
-        self.__store: Dict[str, TaskFunctionType] = {}
-        self.__reverse_store: DefaultDict[TaskFunctionType, Set[str]] = (
-            defaultdict(set)
-        )
+        self.__store: StoreType = {}
+        self.__reverse_store: ReverseStoreType = defaultdict(set)
         self.__locked = False
 
     @property
@@ -189,13 +194,15 @@ class Registry(MutableMapping, Generic[T]):
     ) -> Callable[..., TaskFunctionType]: ...
 
     def __call__(
-        self, name: Optional[str] = None,
+        self, name: Union[Optional[str], TaskFunctionType] = None,
     ) -> Union[Callable[..., TaskFunctionType], TaskFunctionType]:
         if callable(name):
             return self.__call__(None)(name)
 
-        def decorator(func) -> TaskFunctionType:
-            self.register(func, name)
+        function_name: Optional[str] = name
+
+        def decorator(func: TaskFunctionType) -> TaskFunctionType:
+            self.register(func, function_name)
             return func
         return decorator
 
@@ -205,10 +212,23 @@ class Registry(MutableMapping, Generic[T]):
                 f"Task with name {name!r} already "
                 f"registered for {self.__store[name]!r}",
             )
+
+        if (
+            isinstance(self.__store, MappingProxyType) or
+            isinstance(self.__reverse_store, MappingProxyType)
+        ):
+            raise RuntimeError("Registry locked")
+
         self.__store[name] = func
         self.__reverse_store[func].add(name)
 
     def __delitem__(self, name: str) -> None:
+        if (
+            isinstance(self.__store, MappingProxyType) or
+            isinstance(self.__reverse_store, MappingProxyType)
+        ):
+            raise RuntimeError("Registry locked")
+
         func = self.__store.pop(name)
         del self.__reverse_store[func]
 

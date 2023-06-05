@@ -3,9 +3,24 @@ PATIO
 
 PATIO is an acronym for **P**ython **A**synchronous **T**asks for Async**IO**.
 
+Motivation
+----------
+
+I wanted to create an easily extensible library, for distributed task execution,
+like [`celery`](https://docs.celeryq.dev/), only targeting asyncio as the main
+design approach.
+
+By design, the library should be suitable for small projects and the really
+large distributed projects, the general idea is the user simply split the
+project code base to tasks and where those who call and perform them.
+Also, this should help to your project scale horizontally. By make available
+workers or callers across the network using embedded TCP, or using plugins
+to communicate through the existing messaging infrastructure.
 
 Quickstart
 ----------
+
+The simplest example, which provides tasks in a thread pool:
 
 ```python
 import asyncio
@@ -25,7 +40,7 @@ def multiply(*args: int) -> int:
 
 
 async def main():
-    async with ThreadPoolExecutor(rpc) as executor:
+    async with ThreadPoolExecutor(rpc, max_workers=4) as executor:
         async with MemoryBroker(executor) as broker:
             print(
                 await asyncio.gather(
@@ -38,6 +53,44 @@ if __name__ == '__main__':
     asyncio.run(main())
 ```
 
+The `ThreadPoolExecutor` in this example is the entity that will execute the
+tasks. If the tasks in your project are asynchronous, you can select
+`AsyncExecutor`, and then the code will look like this:
+
+```python
+import asyncio
+from functools import reduce
+
+from patio import Registry
+from patio.broker import MemoryBroker
+from patio.executor import AsyncExecutor
+
+
+rpc = Registry()
+
+
+@rpc("mul")
+async def multiply(*args: int) -> int:
+    # do something asynchronously
+    await asyncio.sleep(0)
+    return reduce(lambda x, y: x * y, args)
+
+
+async def main():
+    async with AsyncExecutor(rpc, max_workers=4) as executor:
+        async with MemoryBroker(executor) as broker:
+            print(
+                await asyncio.gather(
+                    *[broker.call("mul", 1, 2, 3) for _ in range(100)]
+                )
+            )
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+For more information about what the essences are responsible for, see below.
 
 The main concepts
 -----------------
@@ -50,7 +103,8 @@ The basic elements from which everything is built are:
 
 * `Registry` - Key-Value like store for the functions
 * `Exectutor` - The thing which execute functions from the registry
-* `Broker` - The actor who distribues tasks in your distributed (or local) system.
+* `Broker` - The actor who distribues tasks in your distributed
+  (or local) system.
 
 Registry
 --------
@@ -243,9 +297,8 @@ from functools import reduce
 import asyncio
 
 from patio import Registry
-from patio.broker.tcp import Server
+from patio.broker.tcp import TCPServerBroker
 from patio.executor import ThreadPoolExecutor
-
 
 rpc = Registry(project="test", auto_naming=False)
 
@@ -258,7 +311,7 @@ async def main():
     rpc.register(mul, "mul")
 
     async with ThreadPoolExecutor(rpc) as executor:
-        async with Server(executor) as broker:
+        async with TCPServerBroker(executor) as broker:
             # Start IPv4 server
             await broker.listen(address='127.0.0.1')
 
@@ -278,16 +331,15 @@ if __name__ == "__main__":
 import asyncio
 
 from patio import Registry
-from patio.broker.tcp import Client
+from patio.broker.tcp import TCPClientBroker
 from patio.executor import ThreadPoolExecutor
-
 
 rpc = Registry(project="test", auto_naming=False)
 
 
 async def main():
     async with ThreadPoolExecutor(rpc) as executor:
-        async with Client(executor) as broker:
+        async with TCPClientBroker(executor) as broker:
             # Connect to the IPv4 address
             await broker.connect(address='127.0.0.1')
 

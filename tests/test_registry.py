@@ -6,7 +6,7 @@ from patio import Registry
 
 
 def test_registry_properties(subtests):
-    r = Registry(project="foo", strict=False, auto_naming=False)
+    r: Registry = Registry(project="foo", strict=False, auto_naming=False)
     assert r.project == "foo"
     assert not r.strict
     assert not r.auto_naming
@@ -18,7 +18,7 @@ def test_registry_properties(subtests):
 
 
 def test_registry_as_mapping(subtests):
-    r = Registry()
+    r: Registry = Registry()
 
     with subtests.test("contains"):
         r["foo"] = lambda x: None
@@ -45,12 +45,12 @@ def test_registry_as_mapping(subtests):
         # Should be ok
         r.lock()
 
-        with pytest.raises(TypeError):
+        with pytest.raises(RuntimeError):
             r["foo"] = lambda x: None
 
 
 def test_registry_decorator(subtests):
-    r = Registry(auto_naming=True)
+    r: Registry = Registry(auto_naming=True)
 
     @r("foo")
     def foo():
@@ -74,7 +74,7 @@ def test_registry_decorator(subtests):
 
 def test_auto_naming(subtests):
     with subtests.test("enabled"):
-        r = Registry(project="test", auto_naming=True)
+        r: Registry = Registry(project="test", auto_naming=True)
 
         with pytest.raises(KeyError):
             print(r["bar"])
@@ -85,7 +85,9 @@ def test_auto_naming(subtests):
 
         auto_name = r.get_name(foo)
         assert auto_name in r
-        assert auto_name == "test.test_registry.test_auto_naming.<locals>.foo"
+        assert auto_name == (
+            "test.tests.test_registry.test_auto_naming.<locals>.foo"
+        )
 
         assert r.resolve(auto_name) == r.resolve(foo)
 
@@ -118,7 +120,7 @@ def test_auto_naming(subtests):
         auto_name = r.get_name(bar)
         assert auto_name in r
         assert auto_name == (
-            "test.test_registry.test_auto_naming.<locals>.bar."
+            "test.tests.test_registry.test_auto_naming.<locals>.bar."
             "R+2IfaUD/3mHEJQ+XeqUstkXG1ZBRtFA74WWe05ex+w"
         )
         assert r.resolve(auto_name) == r.resolve(bar)
@@ -129,7 +131,7 @@ def test_auto_naming(subtests):
         r(baz)
 
         assert r.get_name(baz) == (
-            "test.test_registry.test_auto_naming.<locals>.baz."
+            "test.tests.test_registry.test_auto_naming.<locals>.baz."
             "mYEWlo2vwOi3I/Z2rb5wayVONVncmvJ83EX07QsVOq8"
         )
 
@@ -143,14 +145,14 @@ def pickling_bar():
 
 
 def test_pickling():
-    r1 = Registry()
+    r1: Registry = Registry()
     r1(pickling_foo)
     r1(pickling_bar)
     r1["spam"] = pickling_bar
 
     dumped = pickle.dumps(r1)
 
-    r2 = pickle.loads(dumped)
+    r2: Registry = pickle.loads(dumped)
 
     assert len(r2)
     assert list(r1) == list(r2)
