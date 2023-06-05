@@ -6,9 +6,9 @@ from .thread_pool import ThreadPoolExecutor
 
 
 __all__ = (
-    "AsyncExecutor",
     "AbstractExecutor",
+    "AsyncExecutor",
+    "NullExecutor",
     "ProcessPoolExecutor",
     "ThreadPoolExecutor",
-    "NullExecutor",
 )
