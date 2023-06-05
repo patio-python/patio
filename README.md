@@ -102,8 +102,8 @@ integrations or directly in the user's code.
 The basic elements from which everything is built are:
 
 * `Registry` - Key-Value like store for the functions
-* `Exectutor` - The thing which execute functions from the registry
-* `Broker` - The actor who distribues tasks in your distributed
+* `Executor` - The thing which execute functions from the registry
+* `Broker` - The actor who distributes tasks in your distributed
   (or local) system.
 
 Registry
@@ -196,7 +196,7 @@ Executor
 An Executor is an entity that executes local functions from registry.
 The following executors are implemented in the package:
 
-* `AsyncExecutor` - Implements pool of asyncronous tasks
+* `AsyncExecutor` - Implements pool of asynchronous tasks
 * `ThreadPoolExecutor` - Implements pool of threads
 * `ProcessPoolExecutor` - Implements pool of processes
 * `NullExecutor` - Implements nothing and exists just for forbid execute

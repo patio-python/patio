@@ -1,7 +1,7 @@
 import asyncio
 from functools import reduce
 from operator import mul
-from typing import AsyncGenerator, Any
+from typing import Any, AsyncGenerator
 
 import pytest
 
@@ -38,7 +38,7 @@ class AsyncExecutorBaseCase:
 class TestAsyncExecutor(AsyncExecutorBaseCase):
     @pytest.fixture
     async def executor(
-        self, registry: Registry
+        self, registry: Registry,
     ) -> AsyncGenerator[Any, AbstractExecutor]:
         async with AsyncExecutor(registry) as executor:
             yield executor
@@ -51,7 +51,7 @@ class TestAsyncExecutor(AsyncExecutorBaseCase):
 class TestThreadPoolExecutor(AsyncExecutorBaseCase):
     @pytest.fixture
     async def executor(
-        self, registry: Registry
+        self, registry: Registry,
     ) -> AsyncGenerator[Any, AbstractExecutor]:
         async with ThreadPoolExecutor(registry) as executor:
             yield executor
@@ -64,7 +64,7 @@ class TestThreadPoolExecutor(AsyncExecutorBaseCase):
 class TestProcessPoolExecutor(AsyncExecutorBaseCase):
     @pytest.fixture
     async def executor(
-        self, registry: Registry
+        self, registry: Registry,
     ) -> AsyncGenerator[Any, AbstractExecutor]:
         async with ProcessPoolExecutor(registry) as executor:
             yield executor
@@ -82,7 +82,7 @@ class TestNullExecutor:
 
     @pytest.fixture
     async def executor(
-        self, registry: Registry
+        self, registry: Registry,
     ) -> AsyncGenerator[Any, NullExecutor]:
         async with NullExecutor(registry) as executor:
             yield executor

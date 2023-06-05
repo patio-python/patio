@@ -11,7 +11,7 @@ from functools import cached_property
 from types import MappingProxyType
 from typing import (
     Any, Callable, Coroutine, Deque, Dict, List, Mapping, Optional, Set,
-    TypeVar, Union,
+    TypeVar, Union, final,
 )
 
 from patio.broker import AbstractBroker, TimeoutType, serializer
@@ -312,6 +312,7 @@ class TCPBrokerBase(AbstractBroker, ABC):
 DEFAULT_PORT = 15383
 
 
+@final
 class TCPServerBroker(TCPBrokerBase):
     def __init__(
         self,
@@ -368,6 +369,7 @@ class TCPServerBroker(TCPBrokerBase):
         await super().close()
 
 
+@final
 class TCPClientBroker(TCPBrokerBase):
     async def connection_fabric(
         self, address: str, port: int,

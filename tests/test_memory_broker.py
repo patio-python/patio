@@ -1,12 +1,12 @@
 from functools import reduce
 from operator import mul
-from typing import AsyncGenerator, Any
+from typing import Any, AsyncGenerator
 
 import pytest
 
 from patio import Registry
 from patio.broker import MemoryBroker
-from patio.executor import ThreadPoolExecutor, AbstractExecutor
+from patio.executor import AbstractExecutor, ThreadPoolExecutor
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def registry():
 
 @pytest.fixture()
 async def executor(
-    registry: Registry
+    registry: Registry,
 ) -> AsyncGenerator[Any, ThreadPoolExecutor]:
     async with ThreadPoolExecutor(registry) as executor:
         yield executor
@@ -30,7 +30,7 @@ async def executor(
 
 @pytest.fixture
 async def broker(
-    registry: Registry, executor: AbstractExecutor
+    registry: Registry, executor: AbstractExecutor,
 ) -> AsyncGenerator[Any, MemoryBroker]:
     async with MemoryBroker(executor) as broker:
         yield broker
