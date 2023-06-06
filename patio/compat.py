@@ -3,6 +3,12 @@ import sys
 from typing import Generic, TypeVar
 
 
+try:
+    from typing import Self  # type: ignore
+except ImportError:
+    from typing_extensions import Self
+
+
 T = TypeVar("T")
 
 
@@ -13,8 +19,8 @@ else:
         async def get(self) -> T:
             return await super().get()
 
-        async def put(self, element: T) -> T:
-            return await super().put(element)
+        async def put(self, element: T) -> T:       # type: ignore
+            return await super().put(element)       # type: ignore
 
         def get_nowait(self) -> T:
             return super().get_nowait()
@@ -23,4 +29,4 @@ else:
             return super().put_nowait(element)
 
 
-__all__ = ("Queue",)
+__all__ = ("Queue", "Self")

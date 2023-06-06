@@ -1,8 +1,8 @@
-from .broker import (
+from patio.broker import (
     AbstractBroker, MemoryBroker, TCPBrokerBase, TCPClientBroker,
     TCPServerBroker,
 )
-from .registry import Registry, TaskFunctionType
+from patio.registry import Registry, TaskFunctionType
 
 
 __all__ = (
@@ -12,4 +12,5 @@ __all__ = (
     "TCPBrokerBase",
     "TCPClientBroker",
     "TCPServerBroker",
+    "TaskFunctionType",
 )

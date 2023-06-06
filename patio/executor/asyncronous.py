@@ -1,6 +1,6 @@
 import asyncio
 from functools import cached_property
-from typing import Any, Awaitable, Callable, Set, Tuple
+from typing import Any, Callable, Set, Tuple
 
 from patio.compat import Queue
 from patio.executor.base import AbstractExecutor

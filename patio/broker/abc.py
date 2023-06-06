@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
+from patio.compat import Self
 from patio.executor import AbstractExecutor
 from patio.registry import TaskFunctionType
 
@@ -25,9 +26,10 @@ class AbstractBroker(ABC):
         *args: Any,
         timeout: Optional[TimeoutType] = None,
         **kwargs: Any,
-    ) -> Any: ...
+    ) -> Any:
+        ...
 
-    async def __aenter__(self) -> "AbstractBroker":
+    async def __aenter__(self) -> Self:
         await self.setup()
         return self
 

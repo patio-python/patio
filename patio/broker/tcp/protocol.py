@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import hashlib
-import pickle
 import threading
 from dataclasses import dataclass
 from enum import IntEnum, unique
 from io import BytesIO
 from random import getrandbits
 from struct import Struct
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional, Tuple
 
-from patio.broker import serializer
-from patio.broker.abc import TimeoutType
+from patio.broker.serializer import AbstractSerializer
 
 
 @unique
@@ -43,31 +41,24 @@ class Header:
         return cls(type=PacketTypes(kind), size=size, serial=serial)
 
 
-@dataclass
-class CallRequest:
-    func: str
-    args: Tuple[Any, ...]
-    kwargs: Dict[str, Any]
-    timeout: Optional[TimeoutType]
-
-
 class Protocol:
     HEADER_STRUCT = Struct("!bII")
-    MAX_SERIAL = 2 << 31 - 1
+    MAX_SERIAL = 4294967295
 
-    __slots__ = "__key", "serial", "lock"
+    __slots__ = "__key", "serial", "lock", "serializer"
 
-    def __init__(self, key: bytes = b""):
+    def __init__(self, *, serializer: AbstractSerializer, key: bytes = b""):
         self.__key = key
         self.serial = 0
         self.lock = threading.Lock()
+        self.serializer = serializer
 
     def get_serial(self) -> int:
         with self.lock:
             self.serial += 1
 
-            if self.serial > self.MAX_SERIAL:
-                self.serial = 0
+            if self.serial >= self.MAX_SERIAL:
+                self.serial = 1
 
             return self.serial
 
@@ -84,7 +75,7 @@ class Protocol:
     ) -> bytes:
         with BytesIO() as fp:
             fp.seek(Header.SIZE)
-            pickle.dump(payload, fp)
+            fp.write(self.serializer.pack(payload))
 
             header = Header(
                 type=packet_type,
@@ -102,11 +93,11 @@ class Protocol:
         return self.pack((salt, digest, token), PacketTypes.AUTH_REQUEST)
 
     def authorize_check(self, payload: bytes) -> bool:
-        salt, digest, token = serializer.unpack(payload)
+        salt, digest, token = self.serializer.unpack(payload)
         return self.digest(token, salt=salt) == (salt, digest)
 
     def pack_error(self, exception: Exception, serial: int) -> bytes:
         return self.pack(exception, PacketTypes.ERROR, serial=serial)
 
 
-__all__ = ("PacketTypes", "Header", "CallRequest", "Protocol")
+__all__ = ("PacketTypes", "Header", "Protocol")

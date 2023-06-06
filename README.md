@@ -276,14 +276,16 @@ Full mesh scheme, all clients are connected to all servers.
 #### Authorization
 
 Authorization takes place at the start of the connection,
-for this the parameter `key=` must contain the same keys for client and server.
+for this the parameter `key=` (`b''` is by default) must contain the same keys
+for client and server.
 
 **It is important to understand that this is not 100% protection against
 attacks like MITM etc.**
 
 This approach should only be used if the client and server are on a trusted
 network. In order to secure traffic as it traverses the Internet, the
-`ssl_context=` parameter should be prepended to both the server and the client.
+`ssl_context=` parameter should be prepended to both the server and the client
+(see example bellow).
 
 #### Examples
 
@@ -332,14 +334,148 @@ import asyncio
 
 from patio import Registry
 from patio.broker.tcp import TCPClientBroker
-from patio.executor import ThreadPoolExecutor
+from patio.executor import NullExecutor
 
 rpc = Registry(project="test", auto_naming=False)
 
 
 async def main():
-    async with ThreadPoolExecutor(rpc) as executor:
+    async with NullExecutor(rpc) as executor:
         async with TCPClientBroker(executor) as broker:
+            # Connect to the IPv4 address
+            await broker.connect(address='127.0.0.1')
+
+            # Connect to the IPv6 address (optional)
+            await broker.connect(address='::1', port=12345)
+
+            print(
+                await asyncio.gather(*[
+                    broker.call('mul', i, i) for i in range(10)
+                ]),
+            )
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+##### Examples with SSL
+
+The task comes down to passing the ssl context to the server and to the client.
+
+Below you will see an example of how to make a couple of self-signed
+certificates, and an authorization CA. Original post
+[here](https://gist.github.com/fntlnz/cf14feb5a46b2eda428e000157447309).
+
+This is just an example, and if you want to use your own certificates, just
+create an ssl context as required by your security policy.
+
+###### Certificate authority creation
+
+**Attention:** this is the key used to sign the certificate requests, anyone
+holding this can sign certificates on your behalf. So keep it in a safe place!
+
+```shell
+openssl req -x509 \
+  -sha256 -days 3650 \
+  -nodes \
+  -newkey rsa:2048 \
+  -subj "/CN=Patio Example CA/C=CC/L=West Island" \
+  -keyout CA.key -out CA.pem
+```
+
+###### Server certificate creation
+
+First create server private key:
+
+```shell
+openssl genrsa -out server.key 2048
+```
+
+Then create the certificate request signing this key:
+
+```shell
+openssl req \
+  -new -sha256 \
+  -key server.key \
+  -subj "/CN=server.example.net/C=CC/L=West Island" \
+  -out server.csr
+```
+
+Sign this request by CA:
+
+```shell
+openssl x509 -req \
+  -days 365 -sha256 \
+  -in server.csr \
+  -CA CA.pem \
+  -CAkey CA.key \
+  -CAcreateserial \
+  -out server.pem
+```
+
+This should be enough to encrypt the traffic.
+
+##### Server with SSL executing tasks
+
+```python
+from functools import reduce
+
+import asyncio
+import ssl
+
+from patio import Registry
+from patio.broker.tcp import TCPServerBroker
+from patio.executor import ThreadPoolExecutor
+
+rpc = Registry(project="test", auto_naming=False)
+
+
+def mul(*args):
+    return reduce(lambda x, y: x * y, args)
+
+
+async def main():
+    rpc.register(mul, "mul")
+
+    ssl_context = ssl.SSLContext()
+    ssl_context.load_verify_locations("path/to/CA.pem")
+    ssl_context.load_cert_chain("path/to/server.pem", "path/to/server.key")
+
+    async with ThreadPoolExecutor(rpc) as executor:
+        async with TCPServerBroker(executor, ssl_context=ssl_context) as broker:
+            # Start IPv4 server
+            await broker.listen(address='127.0.0.1')
+
+            # Start IPv6 server
+            await broker.listen(address='::1', port=12345)
+
+            await broker.join()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+##### Client calling tasks remotely
+
+```python
+import asyncio
+import ssl
+
+from patio import Registry
+from patio.broker.tcp import TCPClientBroker
+from patio.executor import NullExecutor
+
+
+rpc = Registry(project="test", auto_naming=False)
+
+
+async def main():
+    ssl_context = ssl.create_default_context(cafile="path/to/CA.pem")
+
+    async with NullExecutor(rpc) as executor:
+        async with TCPClientBroker(executor, ssl_context=ssl_context) as broker:
             # Connect to the IPv4 address
             await broker.connect(address='127.0.0.1')
 

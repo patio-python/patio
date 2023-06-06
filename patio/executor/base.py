@@ -24,10 +24,10 @@ class AbstractExecutor(Generic[T], AsyncContextManager):
     the registry must contain to choose kind of an executor.
     """
 
-    max_workers: int = 4
+    DEFAULT_MAX_WORKERS: int = 4
 
     def __init__(
-        self, registry: Registry, max_workers: int = max_workers,
+        self, registry: Registry, max_workers: int = DEFAULT_MAX_WORKERS,
     ):
         self.registry = registry
         self.max_workers = max_workers

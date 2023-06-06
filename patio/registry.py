@@ -186,12 +186,14 @@ class Registry(MutableMapping, Generic[T]):
         return name
 
     @overload
-    def __call__(self, name: TaskFunctionType) -> TaskFunctionType: ...
+    def __call__(self, name: TaskFunctionType) -> TaskFunctionType:
+        ...
 
     @overload
     def __call__(
         self, name: Optional[str] = None,
-    ) -> Callable[..., TaskFunctionType]: ...
+    ) -> Callable[..., TaskFunctionType]:
+        ...
 
     def __call__(
         self, name: Union[Optional[str], TaskFunctionType] = None,
@@ -260,10 +262,12 @@ class Registry(MutableMapping, Generic[T]):
         return candidates[0]
 
     @overload
-    def resolve(self, func: str) -> Callable[..., T]: ...
+    def resolve(self, func: str) -> Callable[..., T]:
+        ...
 
     @overload
-    def resolve(self, func: Callable[..., T]) -> Callable[..., T]: ...
+    def resolve(self, func: Callable[..., T]) -> Callable[..., T]:
+        ...
 
     def resolve(
         self, func: Union[str, Callable[..., T]],

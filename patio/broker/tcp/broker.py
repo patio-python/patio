@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import pickle
 import ssl
 import uuid
 from abc import ABC, abstractmethod
@@ -10,12 +11,15 @@ from dataclasses import dataclass
 from functools import cached_property
 from types import MappingProxyType
 from typing import (
-    Any, Callable, Coroutine, Deque, Dict, List, Mapping, Optional, Set,
-    TypeVar, Union, final,
+    Any, Awaitable, Callable, Coroutine, Deque, Dict, List, Mapping, Optional,
+    Set, Tuple, TypeVar, Union, final,
 )
 
-from patio.broker import AbstractBroker, TimeoutType, serializer
-from patio.broker.tcp.protocol import CallRequest, Header, PacketTypes, Protocol
+from patio.broker import AbstractBroker, TimeoutType
+from patio.broker.serializer import (
+    AbstractSerializer, RestrictedPickleSerializer,
+)
+from patio.broker.tcp.protocol import Header, PacketTypes, Protocol
 from patio.compat import Queue
 from patio.executor import AbstractExecutor
 from patio.registry import Registry, TaskFunctionType
@@ -29,6 +33,14 @@ log = logging.getLogger(__name__)
 class RPCEvent:
     header: Header
     payload: bytes
+
+
+@dataclass
+class CallRequest:
+    func: str
+    args: Tuple[Any, ...]
+    kwargs: Dict[str, Any]
+    timeout: Optional[TimeoutType]
 
 
 class PacketHandler(ABC):
@@ -72,18 +84,10 @@ class PacketHandler(ABC):
         return RPCEvent(header=header, payload=payload)
 
     async def handle_request(self, event: RPCEvent) -> None:
-        serial = event.header.serial
         try:
-            request: CallRequest = serializer.unpack(event.payload)
-        except ValueError:
-            self.protocol.pack(
-                RuntimeError("Failed to load response"),
-                PacketTypes.ERROR,
-                serial=serial,
+            request: CallRequest = self.protocol.serializer.unpack(
+                event.payload,
             )
-            return
-
-        try:
             result = await asyncio.wait_for(
                 self.executor.execute(
                     request.func, *request.args, **request.kwargs
@@ -91,7 +95,9 @@ class PacketHandler(ABC):
                 timeout=request.timeout,
             )
             self.writer.write(
-                self.protocol.pack(result, PacketTypes.RESPONSE, serial=serial),
+                self.protocol.pack(
+                    result, PacketTypes.RESPONSE, serial=event.header.serial,
+                ),
             )
         except Exception as e:
             self.writer.write(
@@ -105,8 +111,8 @@ class PacketHandler(ABC):
         if future.done():
             return
         try:
-            payload = serializer.unpack(event.payload)
-        except ValueError as e:
+            payload = self.protocol.serializer.unpack(event.payload)
+        except (ValueError, pickle.UnpicklingError) as e:
             future.set_exception(e)
             return
 
@@ -118,8 +124,8 @@ class PacketHandler(ABC):
             return
 
         try:
-            payload = serializer.unpack(event.payload)
-        except ValueError as e:
+            payload = self.protocol.serializer.unpack(event.payload)
+        except (ValueError, pickle.UnpicklingError) as e:
             future.set_exception(e)
             return
 
@@ -231,9 +237,10 @@ class TCPBrokerBase(AbstractBroker, ABC):
         key: bytes = b"", *,
         ssl_context: Optional[ssl.SSLContext] = None,
         reconnect_timeout: TimeoutType = 1,
+        serializer: AbstractSerializer = RestrictedPickleSerializer()
     ):
         self.__tasks: Set[asyncio.Task] = set()
-        self.protocol = Protocol(key=key)
+        self.protocol = Protocol(key=key, serializer=serializer)
         self.reconnect_timeout = reconnect_timeout
         self._ssl_context: Optional[ssl.SSLContext] = ssl_context
         self.__handlers: Deque[PacketHandler] = deque()
@@ -270,18 +277,13 @@ class TCPBrokerBase(AbstractBroker, ABC):
         return task
 
     async def close(self) -> None:
-        cancelled: List[asyncio.Task] = []
-
-        for task in self.__tasks:
+        tasks: List[Awaitable[Any]] = [super().close()]
+        for task in tuple(self.__tasks):
             if task.done():
                 continue
             task.cancel()
-            cancelled.append(task)
-
-        if cancelled:
-            await asyncio.gather(*cancelled, return_exceptions=True)
-
-        await super().close()
+            tasks.append(task)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def join(self) -> None:
         async def waiter() -> None:
@@ -320,10 +322,11 @@ class TCPServerBroker(TCPBrokerBase):
         key: bytes = b"", *,
         ssl_context: Optional[ssl.SSLContext] = None,
         reconnect_timeout: TimeoutType = 1,
+        serializer: AbstractSerializer = RestrictedPickleSerializer()
     ):
         super().__init__(
             executor=executor, key=key, ssl_context=ssl_context,
-            reconnect_timeout=reconnect_timeout,
+            reconnect_timeout=reconnect_timeout, serializer=serializer,
         )
         self.servers: Set[asyncio.AbstractServer] = set()
 
@@ -335,38 +338,40 @@ class TCPServerBroker(TCPBrokerBase):
             executor=self.executor, protocol=self.protocol,
         )
 
-        if not await handler.authorize():
-            raise RuntimeError("Unauthorized")
+        async def handle() -> None:
+            if not await handler.authorize():
+                raise RuntimeError("Unauthorized")
 
-        await self._add_handler(handler)
+            await self._add_handler(handler)
 
-        try:
-            await handler.start_processing()
-        finally:
-            await self._remove_handler(handler)
+            try:
+                await handler.start_processing()
+            finally:
+                await self._remove_handler(handler)
+
+        await self.create_task(handle())
 
     async def listen(
         self, address: str, port: int = DEFAULT_PORT, **kwargs: Any
     ) -> None:
+        if "ssl" not in kwargs:
+            kwargs["ssl"] = self._ssl_context
+
         self.servers.add(
             await asyncio.start_server(
                 self._on_client_connected,
                 host=address,
                 port=port,
-                ssl=self._ssl_context,
                 **kwargs
             ),
         )
 
     async def close(self) -> None:
-        closing = []
+        tasks = [super().close()]
         for server in self.servers:
             server.close()
-            closing.append(server.wait_closed())
-
-        if closing:
-            await asyncio.gather(*closing, return_exceptions=True)
-        await super().close()
+            tasks.append(server.wait_closed())
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 @final
@@ -376,23 +381,35 @@ class TCPClientBroker(TCPBrokerBase):
         on_connected: asyncio.Event,
         **kwargs: Any
     ) -> None:
+        if "ssl" not in kwargs:
+            kwargs["ssl"] = self._ssl_context
+
         while True:
             try:
                 reader, writer = await asyncio.open_connection(
-                    host=address, port=port, ssl=self._ssl_context,
-                    **kwargs
+                    host=address, port=port, **kwargs
                 )
-                handler = ClientPacketHandler(
-                    reader=reader, writer=writer,
-                    executor=self.executor, protocol=self.protocol,
-                )
-                if not await handler.authorize():
-                    raise RuntimeError("Unauthorized")
+                try:
+                    handler = ClientPacketHandler(
+                        reader=reader, writer=writer,
+                        executor=self.executor, protocol=self.protocol,
+                    )
+                    if not await handler.authorize():
+                        raise RuntimeError("Unauthorized")
 
-                on_connected.set()
-                await self._add_handler(handler)
+                    on_connected.set()
+                    await self._add_handler(handler)
 
-                await handler.start_processing()
+                    await handler.start_processing()
+                except asyncio.CancelledError:
+                    if not writer.is_closing():
+                        writer.close()
+                        await writer.wait_closed()
+                    raise
+
+                if not writer.is_closing():
+                    writer.close()
+                    await writer.wait_closed()
 
                 on_connected.clear()
                 await self._remove_handler(handler)
@@ -419,7 +436,9 @@ class TCPClientBroker(TCPBrokerBase):
         self, address: str, port: int = DEFAULT_PORT, **kwargs: Any
     ) -> None:
         event = asyncio.Event()
-        self.create_task(self.connection_fabric(address, port, event, **kwargs))
+        self.create_task(
+            self.connection_fabric(address, port, event, **kwargs)
+        )
         await event.wait()
 
 

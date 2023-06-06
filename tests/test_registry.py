@@ -108,7 +108,7 @@ def test_auto_naming(subtests):
 
         assert r.resolve("spam") == spam
         with pytest.raises(ValueError):
-            assert r.resolve(spam)
+            assert r.resolve(spam) is not None
 
     with subtests.test("strict"):
         r = Registry(project="test", auto_naming=True, strict=True)

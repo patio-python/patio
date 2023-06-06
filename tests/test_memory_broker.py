@@ -6,33 +6,25 @@ import pytest
 
 from patio import Registry
 from patio.broker import MemoryBroker
-from patio.executor import AbstractExecutor, ThreadPoolExecutor
+from patio.executor import ThreadPoolExecutor
 
 
 @pytest.fixture
 def registry():
-    rpc: Registry = Registry()
+    r: Registry = Registry()
 
-    @rpc("mul")
+    @r("mul")
     def multiply(*args: int) -> int:
         return reduce(mul, args)
 
-    return rpc
-
-
-@pytest.fixture()
-async def executor(
-    registry: Registry,
-) -> AsyncGenerator[Any, ThreadPoolExecutor]:
-    async with ThreadPoolExecutor(registry) as executor:
-        yield executor
+    return r
 
 
 @pytest.fixture
 async def broker(
-    registry: Registry, executor: AbstractExecutor,
+    thread_executor: ThreadPoolExecutor,
 ) -> AsyncGenerator[Any, MemoryBroker]:
-    async with MemoryBroker(executor) as broker:
+    async with MemoryBroker(thread_executor) as broker:
         yield broker
 
 
