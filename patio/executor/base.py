@@ -66,10 +66,6 @@ class AbstractExecutor(Generic[T], AsyncContextManager):
         Performs an executor stop. All related and unperformed tasks
         must be completed.
         """
-        raise NotImplementedError(
-            f"Not implemented method shutdown "
-            f"in {self.__class__.__name__!r} ",
-        )
 
     async def __aenter__(self) -> AbstractExecutor:
         await self.setup()

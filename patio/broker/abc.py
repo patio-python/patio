@@ -1,5 +1,7 @@
+import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from functools import cached_property
+from typing import Any, Optional, Union, Coroutine, Set
 
 from patio.compat import Self
 from patio.executor import AbstractExecutor
@@ -12,12 +14,29 @@ TimeoutType = Union[int, float]
 class AbstractBroker(ABC):
     def __init__(self, executor: AbstractExecutor):
         self.executor = executor
+        self.__tasks: Set[asyncio.Task] = set()
+
+    @cached_property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        return asyncio.get_running_loop()
+
+    def create_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
+        task = self.loop.create_task(coro)
+        self.__tasks.add(task)
+        task.add_done_callback(self.__tasks.discard)
+        return task
 
     async def setup(self) -> None:
         await self.executor.setup()
 
     async def close(self) -> None:
-        await self.executor.shutdown()
+        tasks = [self.executor.shutdown()]
+        for task in tuple(self.__tasks):
+            if task.done():
+                continue
+            task.cancel()
+            tasks.append(task)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     @abstractmethod
     async def call(

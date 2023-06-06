@@ -227,10 +227,6 @@ class TCPBrokerBase(AbstractBroker, ABC):
     protocol: Protocol
     registry: Registry
 
-    @cached_property
-    def loop(self) -> asyncio.AbstractEventLoop:
-        return asyncio.get_running_loop()
-
     def __init__(
         self,
         executor: AbstractExecutor,
@@ -239,7 +235,6 @@ class TCPBrokerBase(AbstractBroker, ABC):
         reconnect_timeout: TimeoutType = 1,
         serializer: AbstractSerializer = RestrictedPickleSerializer()
     ):
-        self.__tasks: Set[asyncio.Task] = set()
         self.protocol = Protocol(key=key, serializer=serializer)
         self.reconnect_timeout = reconnect_timeout
         self._ssl_context: Optional[ssl.SSLContext] = ssl_context
@@ -269,21 +264,6 @@ class TCPBrokerBase(AbstractBroker, ABC):
     async def _remove_handler(self, handler: PacketHandler) -> None:
         async with self.__rotate_lock:
             self.__handlers.remove(handler)
-
-    def create_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
-        task = self.loop.create_task(coro)
-        self.__tasks.add(task)
-        task.add_done_callback(self.__tasks.discard)
-        return task
-
-    async def close(self) -> None:
-        tasks: List[Awaitable[Any]] = [super().close()]
-        for task in tuple(self.__tasks):
-            if task.done():
-                continue
-            task.cancel()
-            tasks.append(task)
-        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def join(self) -> None:
         async def waiter() -> None:
