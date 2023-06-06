@@ -19,8 +19,8 @@ else:
         async def get(self) -> T:
             return await super().get()
 
-        async def put(self, element: T) -> T:       # type: ignore
-            return await super().put(element)       # type: ignore
+        async def put(self, element: T) -> T:
+            return await super().put(element)
 
         def get_nowait(self) -> T:
             return super().get_nowait()
