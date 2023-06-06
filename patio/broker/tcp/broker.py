@@ -437,7 +437,7 @@ class TCPClientBroker(TCPBrokerBase):
     ) -> None:
         event = asyncio.Event()
         self.create_task(
-            self.connection_fabric(address, port, event, **kwargs)
+            self.connection_fabric(address, port, event, **kwargs),
         )
         await event.wait()
 
