@@ -57,5 +57,10 @@ class AbstractBroker(ABC):
     ) -> None:
         await self.close()
 
+    async def join(self) -> None:
+        async def waiter() -> None:
+            await self.loop.create_future()
+        await self.create_task(waiter())
+
 
 __all__ = "AbstractBroker", "TimeoutType", "TaskFunctionType"

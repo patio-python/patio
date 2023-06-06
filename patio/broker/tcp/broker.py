@@ -265,11 +265,6 @@ class TCPBrokerBase(AbstractBroker, ABC):
         async with self.__rotate_lock:
             self.__handlers.remove(handler)
 
-    async def join(self) -> None:
-        async def waiter() -> None:
-            await self.loop.create_future()
-        await self.create_task(waiter())
-
     async def call(
         self,
         func: Union[str, TaskFunctionType],
