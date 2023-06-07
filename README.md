@@ -11,16 +11,17 @@ like [`celery`](https://docs.celeryq.dev/), only targeting asyncio as the main
 design approach.
 
 By design, the library should be suitable for small projects and the really
-large distributed projects, the general idea is the user simply split the
-project code base to tasks and where those who call and perform them.
-Also, this should help to your project scale horizontally. By make available
-workers or callers across the network using embedded TCP, or using plugins
-to communicate through the existing messaging infrastructure.
+large distributed projects. The general idea is that the user simply splits
+the projects code base functions on two roles, background tasks and functions
+triggers this background tasks.
+Also, this should help your project to scale horizontally. It allows to make
+workers or callers available across the network using embedded TCP, or using
+plugins to communicate through the existing messaging infrastructure.
 
 Quickstart
 ----------
 
-The simplest example, which provides tasks in a thread pool:
+The minimal example, which executes tasks in a thread pool:
 
 ```python
 import asyncio
@@ -90,12 +91,13 @@ if __name__ == '__main__':
     asyncio.run(main())
 ```
 
-For more information about what the essences are responsible for, see below.
+These examples may seem complicated, but don't worry, the next section details
+the general concepts and hopefully a lot will become clear to you.
 
 The main concepts
 -----------------
 
-The main idea in creating this library was to create a maximally
+The main idea in developing this library was to create a maximally
 modular and extensible system that can be expanded with third-party
 integrations or directly in the user's code.
 
@@ -230,22 +232,22 @@ This package is implemented by the following brokers:
 
 ### `MemoryBroker`
 
-It's useful if you don't need to assign tasks now, but it's a good help
-to do it in the future.
+It's a good start if you don't need to assign tasks in a distributed
+fashion right now.
 
-In fact, it's a simple way to run tasks in the executor from other
+In fact, it's a simple way to run tasks in the executor from the other
 places in your project.
 
 ### `TCPBroker`
 
-This allows you to make your tasks distributed without resorting to
-external message brokers or something else.
+It allows you to make your tasks distributed without resorting to external
+message brokers.
 
 The basic idea of TCP broker implementation is that in terms of
 performing tasks, there is no difference between them, it is
 just a way to establish a connection, both the server and the
 client can be the one who performs tasks and the one who sets
-them, and it is also possible in mixed mode.
+them, and it is also possible in a mixed mode.
 
 In other words, deciding who will be the server and who will be the
 client in your system is just a way to connect and find each other
