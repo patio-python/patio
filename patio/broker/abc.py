@@ -1,7 +1,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Any, Optional, Union, Coroutine, Set
+from typing import Any, Awaitable, Coroutine, List, Optional, Set, Union
 
 from patio.compat import Self
 from patio.executor import AbstractExecutor
@@ -30,7 +30,7 @@ class AbstractBroker(ABC):
         await self.executor.setup()
 
     async def close(self) -> None:
-        tasks = [self.executor.shutdown()]
+        tasks: List[Awaitable[Any]] = [self.executor.shutdown()]
         for task in tuple(self.__tasks):
             if task.done():
                 continue

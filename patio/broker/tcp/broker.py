@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from functools import cached_property
 from types import MappingProxyType
 from typing import (
-    Any, Awaitable, Callable, Coroutine, Deque, Dict, List, Mapping, Optional,
-    Set, Tuple, TypeVar, Union, final,
+    Any, Callable, Coroutine, Deque, Dict, Mapping, Optional, Set, Tuple,
+    TypeVar, Union, final,
 )
 
 from patio.broker import AbstractBroker, TimeoutType
