@@ -18,9 +18,11 @@ async def main():
     async with ThreadPoolExecutor(rpc) as executor:
         async with MemoryBroker(executor) as broker:
             print(
-                await asyncio.gather(*[
-                    broker.call(mul, i, i) for i in range(10)
-                ]),
+                await asyncio.gather(
+                    *[
+                        broker.call(mul, i, i) for i in range(10)
+                    ]
+                ),
             )
 
 

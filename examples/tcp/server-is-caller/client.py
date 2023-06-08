@@ -18,7 +18,7 @@ async def main():
 
     async with ThreadPoolExecutor(rpc) as executor:
         async with TCPClientBroker(executor) as broker:
-            await broker.connect(address='127.0.0.1')
+            await broker.connect(address="127.0.0.1")
             await broker.join()
 
 

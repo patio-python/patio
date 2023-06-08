@@ -1,7 +1,7 @@
 import asyncio
 from functools import reduce
 
-from patio import MemoryBroker, Registry, AsyncExecutor
+from patio import AsyncExecutor, MemoryBroker, Registry
 
 
 rpc = Registry(project="test", strict=True)
@@ -19,9 +19,11 @@ async def main():
             await broker.setup(registry=rpc)
 
             print(
-                await asyncio.gather(*[
-                    broker.call(mul, i, i) for i in range(10)
-                ]),
+                await asyncio.gather(
+                    *[
+                        broker.call(mul, i, i) for i in range(10)
+                    ]
+                ),
             )
 
 

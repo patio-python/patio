@@ -9,6 +9,8 @@ from typing import (
     overload,
 )
 
+from patio.compat import Self
+
 
 T = TypeVar("T")
 
@@ -300,6 +302,11 @@ class Registry(MutableMapping, Generic[T]):
 
         for name, func in state["store"].items():
             self[name] = func
+
+    def __copy__(self) -> Self:
+        clone = self.__class__()
+        clone.__setstate__(self.__getstate__())
+        return clone
 
 
 __all__ = (

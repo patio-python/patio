@@ -1,3 +1,4 @@
+import copy
 from typing import Any, Awaitable, Callable
 
 from patio.executor.base import AbstractExecutor
@@ -11,7 +12,8 @@ class NullExecutor(AbstractExecutor):
     """
 
     async def setup(self) -> None:
-        pass
+        self.registry = copy.copy(self.registry)
+        self.registry.clear()
 
     def submit(
         self, func: Callable[..., T], *args: Any, **kwargs: Any

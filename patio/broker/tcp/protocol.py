@@ -18,6 +18,8 @@ class PacketTypes(IntEnum):
     AUTH_REQUEST = 1
     AUTH_RESPONSE = 2
     AUTH_OK = 3
+    DISCOVER_REQUEST = 5
+    DISCOVER_RESPONSE = 6
     REQUEST = 10
     RESPONSE = 20
     ERROR = 30
