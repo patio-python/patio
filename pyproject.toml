@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "patio"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python Asynchronous Task for AsyncIO"
 authors = ["Dmitry Orlov <me@mosquito.su>"]
 license = "MIT"
