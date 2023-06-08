@@ -257,20 +257,20 @@ server and the clients.
 
 #### Server centric scheme example
 
-![server centric](images/server-centric.svg "Server Centric")
+![server centric](https://raw.githubusercontent.com/patio-python/patio/feature/tcp-broker/images/server-centric.svg "Server Centric")
 
 This diagram describes a simple example, if there is one server
 and one client exchanging messages via TCP.
 
 #### One client multiple servers example
 
-![multiple servers](images/multiple-servers.svg "One client multiple servers")
+![multiple servers](https://raw.githubusercontent.com/patio-python/patio/feature/tcp-broker/images/multiple-servers.svg "One client multiple servers")
 
 This is an example of how a client establishes connections to a set server.
 
 #### Full mesh example
 
-![full mesh](images/full-mesh.svg "Full mesh")
+![full mesh](https://raw.githubusercontent.com/patio-python/patio/feature/tcp-broker/images/full-mesh.svg "Full mesh")
 
 Full mesh scheme, all clients are connected to all servers.
 
