@@ -12,8 +12,7 @@ design approach.
 
 By design, the library should be suitable for small projects and the really
 large distributed projects. The general idea is that the user simply splits
-the projects code base functions on two roles, background tasks and functions
-triggers this background tasks.
+the projects code base into functions of two roles – background tasks and triggers of these background tasks.
 Also, this should help your project to scale horizontally. It allows to make
 workers or callers available across the network using embedded TCP, or using
 plugins to communicate through the existing messaging infrastructure.
