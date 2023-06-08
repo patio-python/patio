@@ -5,7 +5,7 @@ description = "Python Asynchronous Task for AsyncIO"
 authors = ["Dmitry Orlov <me@mosquito.su>"]
 license = "MIT"
 readme = "README.md"
-url = "https://github.com/patio-python/patio/"
+homepage = "https://github.com/patio-python/patio/"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Framework :: AsyncIO",
