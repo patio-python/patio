@@ -6,13 +6,13 @@ import pickle
 import ssl
 import uuid
 from abc import ABC, abstractmethod
-from collections import deque
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from functools import cached_property
 from types import MappingProxyType
 from typing import (
-    Any, Callable, Coroutine, Deque, Dict, Mapping, Optional, Set, Tuple,
-    TypeVar, Union, final,
+    Any, Callable, Coroutine, DefaultDict, Deque, Dict, Iterable, List, Mapping,
+    Optional, Set, Tuple, TypeVar, Union, final,
 )
 
 from patio.broker import AbstractBroker, TimeoutType
@@ -48,7 +48,6 @@ class PacketHandler(ABC):
     writer: asyncio.StreamWriter
     protocol: Protocol
     executor: AbstractExecutor
-    registry: Registry
 
     def __init__(
         self,
@@ -72,6 +71,7 @@ class PacketHandler(ABC):
             PacketTypes.REQUEST: self.handle_request,
             PacketTypes.RESPONSE: self.handle_response,
             PacketTypes.ERROR: self.handle_error,
+            PacketTypes.DISCOVER_REQUEST: self.handle_discover_request,
         })
 
     @cached_property
@@ -131,6 +131,15 @@ class PacketHandler(ABC):
 
         future.set_exception(payload)
 
+    async def handle_discover_request(self, event: RPCEvent) -> None:
+        self.writer.write(
+            self.protocol.pack(
+                list(self.executor.registry),
+                PacketTypes.DISCOVER_RESPONSE,
+                serial=event.header.serial,
+            ),
+        )
+
     async def step(self) -> None:
         event = await self.get_event()
         method = self.__method_map[event.header.type]
@@ -144,6 +153,19 @@ class PacketHandler(ABC):
             self.protocol.pack(request, PacketTypes.REQUEST, serial=serial),
         )
         return await future
+
+    async def discover(self) -> List[str]:
+        self.writer.write(
+            self.protocol.pack(None, PacketTypes.DISCOVER_REQUEST),
+        )
+        while True:
+            event: RPCEvent = await self.get_event()
+
+            if event.header.type == PacketTypes.DISCOVER_REQUEST:
+                await self.handle_discover_request(event)
+                continue
+
+            return self.protocol.serializer.unpack(event.payload)
 
     @abstractmethod
     async def authorize(self) -> bool:
@@ -238,32 +260,37 @@ class TCPBrokerBase(AbstractBroker, ABC):
         self.protocol = Protocol(key=key, serializer=serializer)
         self.reconnect_timeout = reconnect_timeout
         self._ssl_context: Optional[ssl.SSLContext] = ssl_context
-        self.__handlers: Deque[PacketHandler] = deque()
+        self.__handlers: DefaultDict[str, Deque[PacketHandler]] = (
+            defaultdict(deque)
+        )
         self.__rotate_lock = asyncio.Lock()
 
         super().__init__(executor=executor)
 
-    async def _get_handler(self) -> PacketHandler:
+    async def _get_handler(self, method: str) -> PacketHandler:
         handler: PacketHandler
 
         async with self.__rotate_lock:
-            while not self.__handlers:
+            while method not in self.__handlers:
                 log.warning(
                     "No active connections, retrying after %.3f seconds.",
                     self.reconnect_timeout,
                 )
                 await asyncio.sleep(self.reconnect_timeout)
-
-            handler = self.__handlers.popleft()
-            self.__handlers.append(handler)
+            handler = self.__handlers[method].popleft()
+            self.__handlers[method].append(handler)
         return handler
 
-    async def _add_handler(self, handler: PacketHandler) -> None:
-        self.__handlers.append(handler)
+    async def _add_handler(
+        self, handler: PacketHandler, methods: Iterable[str],
+    ) -> None:
+        for method in methods:
+            self.__handlers[method].append(handler)
 
     async def _remove_handler(self, handler: PacketHandler) -> None:
         async with self.__rotate_lock:
-            self.__handlers.remove(handler)
+            for handlers in self.__handlers.values():
+                handlers.remove(handler)
 
     async def call(
         self,
@@ -279,11 +306,11 @@ class TCPBrokerBase(AbstractBroker, ABC):
             func=func, args=args, kwargs=kwargs, timeout=timeout,
         )
 
-        async def go() -> Any:
-            handler = await self._get_handler()
+        async def go(name: str) -> Any:
+            handler = await self._get_handler(name)
             return await handler.make_request(request)
 
-        return await asyncio.wait_for(go(), timeout=timeout)
+        return await asyncio.wait_for(go(func), timeout=timeout)
 
 
 DEFAULT_PORT = 15383
@@ -317,7 +344,9 @@ class TCPServerBroker(TCPBrokerBase):
             if not await handler.authorize():
                 raise RuntimeError("Unauthorized")
 
-            await self._add_handler(handler)
+            methods = await handler.discover()
+
+            await self._add_handler(handler, methods or ())
 
             try:
                 await handler.start_processing()
@@ -372,9 +401,9 @@ class TCPClientBroker(TCPBrokerBase):
                     if not await handler.authorize():
                         raise RuntimeError("Unauthorized")
 
+                    methods = await handler.discover()
                     on_connected.set()
-                    await self._add_handler(handler)
-
+                    await self._add_handler(handler, methods or ())
                     await handler.start_processing()
                 except asyncio.CancelledError:
                     if not writer.is_closing():
