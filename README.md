@@ -1,3 +1,5 @@
+[![PyPI - License](https://img.shields.io/pypi/l/patio)](https://pypi.org/project/patio) [![Wheel](https://img.shields.io/pypi/wheel/patio)](https://pypi.org/project/patio) [![Mypy](http://www.mypy-lang.org/static/mypy_badge.svg)]() [![PyPI](https://img.shields.io/pypi/v/patio)](https://pypi.org/project/patio) [![PyPI](https://img.shields.io/pypi/pyversions/patio)](https://pypi.org/project/patio) [![Coverage Status](https://coveralls.io/repos/github/patio-python/patio/badge.svg?branch=master)](https://coveralls.io/github/patio-python/patio?branch=master) ![tox](https://github.com/patio-python/patio/workflows/tests/badge.svg?branch=master)
+
 PATIO
 =====
 
